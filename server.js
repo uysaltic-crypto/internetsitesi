@@ -131,15 +131,22 @@ app.get("/api/stock", requireApiKey, (req, res) => {
 });
 
 app.post("/api/stock", requireApiKey, (req, res) => {
-  const { barcode, quantity } = req.body || {};
+  const { barcode, quantity, name, price } = req.body || {};
   const sku = String(barcode || "").trim();
-  if (!sku || !products[sku]) {
-    // Bu ürün bu sitede satılmıyor — hata değil, sadece uygulanamaz.
-    return res.json({ ok: true, skipped: true, message: "Bu ürün sitede yok, atlandı." });
+  if (!sku) return res.status(400).json({ ok: false, error: "Ürün kodu gerekli." });
+
+  const qty = Math.max(0, Math.floor(Number(quantity) || 0));
+  if (!products[sku]) {
+    // Bu ürün sitede yoktu — panelden gelen isim/fiyatla yeni bir ürün olarak oluştur.
+    products[sku] = { name: name || sku, category: "", price: Number(price) || 0, stock: qty };
+    persistProducts();
+    return res.json({ ok: true, created: true });
   }
-  products[sku].stock = Math.max(0, Math.floor(Number(quantity) || 0));
+  products[sku].stock = qty;
+  if (name && !products[sku].name) products[sku].name = name;
+  if (price && !products[sku].price) products[sku].price = Number(price);
   persistProducts();
-  res.json({ ok: true });
+  res.json({ ok: true, created: false });
 });
 
 app.use(express.static(path.join(__dirname, "public")));
