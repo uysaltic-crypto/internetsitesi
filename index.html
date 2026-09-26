@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nokta Hırdavat &amp; Mobilya Aksesuarları</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#14171F; --paper:#FAF8F4; --paper-2:#F0ECE3; --line:#E4DFD3;
+  --orange:#FF5A2B; --amber:#FFC53D; --teal:#0EA5A0;
+  --muted:#6B6F7A; --white:#FFFFFF;
+  --radius-card: 14px;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-sizing: border-box;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#F2EFE9; --paper:#14171F; --paper-2:#1C2029; --line:#2A2E38; --muted:#9BA0AC; --white:#1C2029;
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#F2EFE9; --paper:#14171F; --paper-2:#1C2029; --line:#2A2E38; --muted:#9BA0AC; --white:#1C2029;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:'Inter',sans-serif;scroll-padding-top: env(safe-area-inset-top,0px);}
+h1,h2,h3,.brand{font-family:'Space Grotesk',sans-serif}
+.mono{font-family:'JetBrains Mono',monospace}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+img,svg{max-width:100%;display:block}
+
+/* HEADER */
+header{position:sticky;top:0;z-index:40;background:var(--paper);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
+.nav{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;max-width:1180px;margin:0 auto;gap:16px}
+.brand{font-size:20px;font-weight:700;letter-spacing:-0.02em;display:flex;align-items:center;gap:8px}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:var(--orange)}
+.navlinks{display:flex;gap:28px;font-size:14px;font-weight:500;color:var(--muted)}
+.navlinks a:hover{color:var(--ink)}
+.cart-btn{position:relative;border:1px solid var(--line);background:var(--paper-2);border-radius:10px;padding:9px 14px;font-size:14px;font-weight:600;cursor:pointer;color:var(--ink);display:flex;align-items:center;gap:8px}
+.cart-count{background:var(--orange);color:white;border-radius:999px;font-size:11px;min-width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0 4px}
+
+/* HERO */
+.hero{padding:64px 0 40px;overflow:auto}
+.hero-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:48px;align-items:center}
+.hero h1{font-size:44px;line-height:1.08;margin:0 0 18px;letter-spacing:-0.01em}
+.hero p{font-size:17px;color:var(--muted);max-width:440px;line-height:1.6;margin:0 0 28px}
+.hero-ctas{display:flex;gap:12px}
+.btn-primary{background:var(--orange);color:white;border:none;padding:13px 22px;border-radius:10px;font-weight:600;font-size:14px;cursor:pointer}
+.btn-ghost{background:transparent;border:1px solid var(--line);color:var(--ink);padding:13px 22px;border-radius:10px;font-weight:600;font-size:14px;cursor:pointer}
+.hero-art{position:relative;height:320px}
+.chip{position:absolute;border-radius:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 12px 30px -10px rgba(0,0,0,.25)}
+.chip svg{width:44%;height:44%}
+.c1{width:180px;height:180px;background:var(--amber);top:0;left:40px;transform:rotate(-6deg)}
+.c2{width:150px;height:150px;background:var(--teal);top:60px;right:10px;transform:rotate(8deg)}
+.c3{width:130px;height:130px;background:var(--orange);bottom:0;left:110px;transform:rotate(4deg)}
+
+/* CATEGORY STRIP */
+.cats{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:20px 0 56px}
+.cat-card{border-radius:var(--radius-card);padding:28px;border:1px solid var(--line);background:var(--paper-2);cursor:pointer;transition:transform .15s ease}
+.cat-card:hover{transform:translateY(-2px)}
+.cat-card h3{margin:14px 0 6px;font-size:20px}
+.cat-card p{margin:0;color:var(--muted);font-size:14px}
+.cat-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:white}
+.cat-icon.mob{background:var(--amber);color:#14171F}
+.cat-icon.hir{background:var(--orange)}
+
+/* PRODUCTS */
+.section-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:10px}
+.section-head h2{font-size:24px;margin:0}
+.filters{display:flex;gap:8px;flex-wrap:wrap}
+.filter-btn{border:1px solid var(--line);background:var(--paper);padding:7px 14px;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted)}
+.filter-btn.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;padding-bottom:60px}
+.card{border:1px solid var(--line);border-radius:var(--radius-card);padding:18px;background:var(--paper);display:flex;flex-direction:column;gap:10px}
+.card-visual{height:110px;border-radius:10px;display:flex;align-items:center;justify-content:center}
+.card-visual svg{width:52px;height:52px}
+.card .cat-tag{font-size:11px;font-weight:600;color:var(--muted);text-transform:none}
+.card h4{margin:0;font-size:15px;line-height:1.3}
+.card .sku{font-size:11px;color:var(--muted)}
+.card-foot{display:flex;align-items:center;justify-content:space-between;margin-top:auto}
+.price{font-weight:700;font-size:16px}
+.add-btn{border:none;background:var(--ink);color:var(--paper);border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer}
+.add-btn:active{opacity:.8}
+
+/* CART DRAWER */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:60;opacity:0;pointer-events:none;transition:opacity .2s}
+.overlay.open{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;height:100%;width:380px;max-width:92vw;background:var(--paper);z-index:70;transform:translateX(100%);transition:transform .25s ease;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.drawer.open{transform:translateX(0)}
+.drawer-head{display:flex;justify-content:space-between;align-items:center;padding:20px;border-bottom:1px solid var(--line)}
+.drawer-items{flex:1;overflow-y:auto;padding:12px 20px}
+.cart-row{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.cart-row .thumb{width:44px;height:44px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.cart-row .info{flex:1}
+.cart-row .info h5{margin:0 0 4px;font-size:14px}
+.qty{display:flex;align-items:center;gap:8px;margin-top:6px}
+.qty button{width:22px;height:22px;border-radius:6px;border:1px solid var(--line);background:var(--paper-2);cursor:pointer;font-size:13px}
+.remove{font-size:12px;color:var(--muted);cursor:pointer;text-decoration:underline;margin-left:10px}
+.drawer-foot{padding:20px;border-top:1px solid var(--line)}
+.subtotal-row{display:flex;justify-content:space-between;margin-bottom:14px;font-size:15px;font-weight:600}
+.empty-cart{padding:40px 20px;text-align:center;color:var(--muted);font-size:14px}
+.close-x{background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink)}
+
+/* CHECKOUT MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:80;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.open{display:flex}
+.modal{background:var(--paper);border-radius:16px;max-width:420px;width:100%;padding:28px;max-height:85vh;overflow-y:auto}
+.modal h3{margin-top:0}
+.modal label{font-size:13px;font-weight:600;display:block;margin:14px 0 6px}
+.modal input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--paper-2);color:var(--ink);font-size:14px}
+.modal-actions{display:flex;gap:10px;margin-top:22px}
+.confirm-box{text-align:center;padding:10px 0}
+.confirm-box .big{font-size:40px}
+
+footer{border-top:1px solid var(--line);padding:36px 0;margin-top:20px}
+.foot-grid{display:flex;justify-content:space-between;flex-wrap:wrap;gap:20px;color:var(--muted);font-size:13px}
+
+@media (max-width:860px){
+  .hero-grid{grid-template-columns:1fr}
+  .hero-art{order:-1;height:220px}
+  .cats{grid-template-columns:1fr}
+  .grid{grid-template-columns:repeat(2,1fr)}
+  .navlinks{display:none}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav">
+    <div class="brand"><span class="dot"></span>Nokta Hırdavat</div>
+    <div class="navlinks">
+      <a href="#kategoriler">Kategoriler</a>
+      <a href="#urunler">Ürünler</a>
+      <a href="#hakkinda">Hakkımızda</a>
+    </div>
+    <button class="cart-btn" onclick="toggleCart(true)">
+      🛒 Sepet <span class="cart-count" id="cartCount">0</span>
+    </button>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <h1>Mobilyanın ve işin sağlam durduğu yer.</h1>
+      <p>Menteşeden raya, çelik bağlantıdan avadanlığa — atölyeden eve, projeden şantiyeye ihtiyacınız olan aksesuar ve hırdavat tek yerde.</p>
+      <div class="hero-ctas">
+        <button class="btn-primary" onclick="document.getElementById('urunler').scrollIntoView({behavior:'smooth'})">Ürünleri Keşfet</button>
+        <button class="btn-ghost" onclick="document.getElementById('kategoriler').scrollIntoView({behavior:'smooth'})">Kategorilere Göz At</button>
+      </div>
+    </div>
+    <div class="hero-art">
+      <div class="chip c1"><svg viewBox="0 0 24 24" fill="none" stroke="#14171F" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M18 6l-2.5 2.5M8.5 15.5L6 18"/></svg></div>
+      <div class="chip c2"><svg viewBox="0 0 24 24" fill="none" stroke="#14171F" stroke-width="1.6"><path d="M14 3l7 7-9 9-7-7z"/><path d="M8 15l-4 4"/></svg></div>
+      <div class="chip c3"><svg viewBox="0 0 24 24" fill="none" stroke="#FAF8F4" stroke-width="1.6"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M10 4v16"/></svg></div>
+    </div>
+  </div>
+</section>
+
+<section class="wrap" id="kategoriler">
+  <div class="cats">
+    <div class="cat-card" onclick="filterCat('mobilya')">
+      <div class="cat-icon mob"><svg viewBox="0 0 24 24" width="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 13V6a1 1 0 011-1h14a1 1 0 011 1v7M4 13h16M4 13v6M20 13v6M7 19v-2M17 19v-2"/></svg></div>
+      <h3>Mobilya Aksesuarları</h3>
+      <p>Menteşe, çekmece rayı, kulp, ayak, bağlantı elemanı ve daha fazlası.</p>
+    </div>
+    <div class="cat-card" onclick="filterCat('hirdavat')">
+      <div class="cat-icon hir"><svg viewBox="0 0 24 24" width="22" fill="none" stroke="white" stroke-width="1.8"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.1-3.1a5 5 0 01-6.1 6.1L6.3 20.7a2 2 0 01-2.8-2.8L11.9 9.5a5 5 0 016.1-6.1z"/></svg></div>
+      <h3>Hırdavat</h3>
+      <p>Vida, dübel, kilit, avadanlık, elektrikli el aletleri ve sarf malzemesi.</p>
+    </div>
+  </div>
+</section>
+
+<section class="wrap" id="urunler">
+  <div class="section-head">
+    <h2>Öne Çıkan Ürünler</h2>
+    <div class="filters">
+      <button class="filter-btn active" data-f="hepsi" onclick="filterCat('hepsi')">Hepsi</button>
+      <button class="filter-btn" data-f="mobilya" onclick="filterCat('mobilya')">Mobilya Aksesuarları</button>
+      <button class="filter-btn" data-f="hirdavat" onclick="filterCat('hirdavat')">Hırdavat</button>
+    </div>
+  </div>
+  <div class="grid" id="productGrid"></div>
+</section>
+
+<footer>
+  <div class="wrap foot-grid" id="hakkinda">
+    <div><strong style="color:var(--ink)">Nokta Hırdavat &amp; Mobilya Aksesuarları</strong><br>Örnek gösterim sitesi — gerçek bir işletmeye ait değildir.</div>
+    <div>Çalışma Saatleri<br>Hafta içi 08:00 – 18:30</div>
+    <div>İletişim<br>info@noktahirdavat.example</div>
+  </div>
+</footer>
+
+<div class="overlay" id="overlay" onclick="toggleCart(false)"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <strong>Sepetim</strong>
+    <button class="close-x" onclick="toggleCart(false)">✕</button>
+  </div>
+  <div class="drawer-items" id="cartItems"></div>
+  <div class="drawer-foot" id="drawerFoot" style="display:none">
+    <div class="subtotal-row"><span>Ara Toplam</span><span id="subtotal">0 ₺</span></div>
+    <button class="btn-primary" style="width:100%" onclick="openCheckout()">Siparişi Tamamla</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="checkoutOverlay">
+  <div class="modal" id="checkoutModal"></div>
+</div>
+
+<script>
+// Ürünler artık backend'den (data/products.json) çekiliyor — Ticaret Paneli'nin
+// stok yazdığı KAYNAK burasıdır. ICON/renk ataması sku önekine göre yapılır.
+let PRODUCTS = [];
+const ICON_BY_CODE = { hinge:['MB-1042','MB-6088'], rail:['MB-2210'], handle:['MB-3305'], leg:['MB-4108'], bolt:['MB-5012'],
+  screw:['HR-1077'], drill:['HR-2201'], lock:['HR-3315'], dowel:['HR-4090'], tool:['HR-5044'], level:['HR-6132'] };
+function iconFor(sku){ for(const [icon, skus] of Object.entries(ICON_BY_CODE)) if(skus.includes(sku)) return icon; return 'tool'; }
+
+async function loadProducts(){
+  try{
+    const resp = await fetch('/api/public/products');
+    const data = await resp.json();
+    PRODUCTS = data.products.map((p,i)=>({
+      id: p.sku, cat: p.category, name: p.name, sku: p.sku, price: p.price, stock: p.stock,
+      color: p.category==='mobilya' ? 'var(--amber)' : 'var(--orange)',
+      ink: p.category==='mobilya' ? '#14171F' : '#FAF8F4',
+      icon: iconFor(p.sku)
+    }));
+  }catch(e){
+    document.getElementById('productGrid').innerHTML = '<p style="color:var(--muted)">Ürünler yüklenemedi. Sayfayı yenileyin.</p>';
+  }
+  renderProducts();
+}
+
+const ICONS = {
+  hinge:'<path d="M4 6h6v12H4zM14 6h6v12h-6zM10 9h4M10 15h4"/>',
+  rail:'<path d="M3 8h18M3 16h18M6 8v8M18 8v8"/>',
+  handle:'<rect x="5" y="10" width="14" height="4" rx="2"/><path d="M8 10V7M16 10V7"/>',
+  leg:'<path d="M12 3v12M8 21l4-6 4 6"/>',
+  bolt:'<circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
+  screw:'<path d="M12 2v9M9 6h6M9 8h6"/><path d="M12 11l-3 11M12 11l3 11M10 15h4M9.5 18h5"/>',
+  drill:'<path d="M3 9h11l4 3-4 3H3z"/><path d="M18 12h3"/>',
+  lock:'<rect x="6" y="10" width="12" height="9" rx="2"/><path d="M9 10V7a3 3 0 016 0v3"/>',
+  dowel:'<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/>',
+  tool:'<path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.1-3.1a5 5 0 01-6.1 6.1L6.3 20.7a2 2 0 01-2.8-2.8L11.9 9.5a5 5 0 016.1-6.1z"/>',
+  level:'<rect x="3" y="10" width="18" height="4" rx="1"/><circle cx="12" cy="12" r="1.3"/>'
+};
+
+let cart = {};
+let activeFilter = 'hepsi';
+
+function renderProducts(){
+  const grid = document.getElementById('productGrid');
+  grid.innerHTML = '';
+  PRODUCTS.filter(p => activeFilter==='hepsi' || p.cat===activeFilter).forEach(p=>{
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.innerHTML = `
+      <div class="card-visual" style="background:${p.color}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="${p.ink}" stroke-width="1.6">${ICONS[p.icon]}</svg>
+      </div>
+      <div class="cat-tag">${p.cat==='mobilya'?'Mobilya Aksesuarı':'Hırdavat'}</div>
+      <h4>${p.name}</h4>
+      <div class="sku mono">${p.sku}</div>
+      <div class="card-foot">
+        <div class="price">${p.price} ₺</div>
+        <button class="add-btn" onclick="addToCart('${p.id}')" ${p.stock<=0?'disabled':''}>${p.stock<=0?'Tükendi':'Sepete Ekle'}</button>
+      </div>`;
+    grid.appendChild(el);
+  });
+}
+
+function filterCat(cat){
+  activeFilter = cat;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.toggle('active', b.dataset.f===cat));
+  renderProducts();
+  document.getElementById('urunler').scrollIntoView({behavior:'smooth'});
+}
+
+function addToCart(id){
+  cart[id] = (cart[id]||0) + 1;
+  renderCart();
+  toggleCart(true);
+}
+function changeQty(id, delta){
+  cart[id] = (cart[id]||0) + delta;
+  if(cart[id] <= 0) delete cart[id];
+  renderCart();
+}
+function removeItem(id){ delete cart[id]; renderCart(); }
+
+function renderCart(){
+  const itemsEl = document.getElementById('cartItems');
+  const foot = document.getElementById('drawerFoot');
+  const ids = Object.keys(cart);
+  const totalCount = ids.reduce((s,id)=>s+cart[id],0);
+  document.getElementById('cartCount').textContent = totalCount;
+
+  if(ids.length === 0){
+    itemsEl.innerHTML = '<div class="empty-cart">Sepetiniz boş.<br>Ürün eklemek için ürünlere göz atın.</div>';
+    foot.style.display = 'none';
+    return;
+  }
+  foot.style.display = 'block';
+  let subtotal = 0;
+  itemsEl.innerHTML = ids.map(id=>{
+    const p = PRODUCTS.find(x=>x.id==id);
+    subtotal += p.price * cart[id];
+    return `<div class="cart-row">
+      <div class="thumb" style="background:${p.color}"><svg viewBox="0 0 24 24" width="22" fill="none" stroke="${p.ink}" stroke-width="1.6">${ICONS[p.icon]}</svg></div>
+      <div class="info">
+        <h5>${p.name}</h5>
+        <div class="sku mono">${p.price} ₺</div>
+        <div class="qty">
+          <button onclick="changeQty('${p.id}',-1)">–</button>
+          <span>${cart[id]}</span>
+          <button onclick="changeQty('${p.id}',1)">+</button>
+          <span class="remove" onclick="removeItem('${p.id}')">Kaldır</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('subtotal').textContent = subtotal.toLocaleString('tr-TR') + ' ₺';
+}
+
+function toggleCart(open){
+  document.getElementById('drawer').classList.toggle('open', open);
+  document.getElementById('overlay').classList.toggle('open', open);
+}
+
+function openCheckout(){
+  const modal = document.getElementById('checkoutModal');
+  modal.innerHTML = `
+    <h3>Teslimat Bilgileri</h3>
+    <label>Ad Soyad</label><input id="ckName" placeholder="Adınız Soyadınız">
+    <label>Adres</label><input id="ckAddr" placeholder="Teslimat adresi">
+    <label>Telefon</label><input id="ckPhone" placeholder="05xx xxx xx xx">
+    <div class="modal-actions">
+      <button class="btn-ghost" style="flex:1" onclick="closeCheckout()">Vazgeç</button>
+      <button class="btn-primary" style="flex:1" onclick="confirmOrder()">Siparişi Onayla</button>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:16px">Sipariş kaydedilir; kapıda ödeme/havale gibi bir yöntem belirtilmediği sürece online ödeme alınmaz.</p>`;
+  document.getElementById('checkoutOverlay').classList.add('open');
+}
+function closeCheckout(){ document.getElementById('checkoutOverlay').classList.remove('open'); }
+
+async function confirmOrder(){
+  const name = document.getElementById('ckName').value.trim();
+  const address = document.getElementById('ckAddr').value.trim();
+  const phone = document.getElementById('ckPhone').value.trim();
+  if(!name || !address){ alert('Ad soyad ve adres gerekli.'); return; }
+
+  const items = Object.entries(cart).map(([sku,qty])=>({sku, qty}));
+  const modal = document.getElementById('checkoutModal');
+  modal.innerHTML = `<div class="confirm-box"><p style="color:var(--muted)">Sipariş oluşturuluyor…</p></div>`;
+
+  try{
+    const resp = await fetch('/api/checkout', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ name, address, phone, items })
+    });
+    const data = await resp.json();
+    if(!data.ok){
+      modal.innerHTML = `<div class="confirm-box"><h3>Sipariş oluşturulamadı</h3><p style="color:var(--muted)">${data.error||''}</p><button class="btn-primary" style="width:100%;margin-top:10px" onclick="closeCheckout()">Kapat</button></div>`;
+      return;
+    }
+    modal.innerHTML = `
+      <div class="confirm-box">
+        <div class="big">✅</div>
+        <h3>Siparişiniz alındı</h3>
+        <p style="color:var(--muted)">Sipariş No: <strong class="mono">${data.orderNumber}</strong></p>
+        <button class="btn-primary" style="width:100%;margin-top:10px" onclick="finishOrder()">Kapat</button>
+      </div>`;
+  }catch(e){
+    modal.innerHTML = `<div class="confirm-box"><h3>Bağlantı hatası</h3><p style="color:var(--muted)">Sipariş gönderilemedi, tekrar deneyin.</p><button class="btn-primary" style="width:100%;margin-top:10px" onclick="closeCheckout()">Kapat</button></div>`;
+  }
+}
+
+function finishOrder(){
+  cart = {};
+  renderCart();
+  closeCheckout();
+  toggleCart(false);
+  loadProducts(); // güncel stokları yeniden çek
+}
+
+loadProducts();
+renderCart();
+</script>
+</body>
+</html>

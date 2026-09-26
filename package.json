@@ -1,0 +1,14 @@
+{
+  "name": "nokta-hirdavat-site",
+  "version": "1.0.0",
+  "description": "Mobilya aksesuarları ve hırdavat vitrini — sipariş/stok API'si Ticaret Paneli ile uyumlu",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  }
+}
