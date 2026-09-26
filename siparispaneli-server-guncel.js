@@ -1,1615 +1,971 @@
-require("dotenv").config();
-const express = require("express");
-const axios = require("axios");
-const crypto = require("crypto");
-const fs = require("fs");
-const path = require("path");
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ticaret Paneli</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #0F1115; --surface: #171A21; --surface2: #1B212B; --border: #242832;
+    --text: #E8EAED; --muted: #6B7280; --danger: #F87171; --warn: #FBBF24; --ok: #34D399;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  header { border-bottom:1px solid var(--border); background:#12151B; position:sticky; top:0; z-index:10; }
+  .wrap { max-width:1180px; margin:0 auto; padding:16px 20px; }
+  .headrow { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+  h1 { font-size:15px; margin:0; font-weight:600; }
+  .brand { font-size:11px; color:var(--muted); font-family:monospace; margin-top:2px; }
+  .brand span { margin-right:6px; }
+  button { background:var(--text); color:var(--bg); border:none; border-radius:6px; padding:8px 14px; font-size:12px; font-weight:600; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--muted); border:1px solid var(--border); }
+  button.small { padding:5px 9px; font-size:11px; }
+  button:disabled { opacity:.5; cursor:default; }
+  .tabs { display:flex; gap:6px; margin-top:12px; }
+  .tab { padding:7px 14px; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; color:var(--muted); border:1px solid transparent; }
+  .tab.active { background:var(--surface2); color:var(--text); border-color:var(--border); }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(120px,1fr)); gap:10px; margin:18px 0; }
+  .stat { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:12px 14px; }
+  .stat .label { font-size:10px; color:var(--muted); letter-spacing:.04em; }
+  .stat .value { font-size:22px; font-weight:700; margin-top:4px; }
+  .errbox { background:#F8717114; border:1px solid #F8717155; color:var(--danger); border-radius:8px; padding:10px 12px; font-size:12px; margin-bottom:10px; }
+  .syncbox { background:#34D39914; border:1px solid #34D39955; color:var(--ok); border-radius:8px; padding:10px 12px; font-size:12px; margin-bottom:10px; }
+  .warnbox { background:#FBBF2414; border:1px solid #FBBF2455; color:var(--warn); border-radius:8px; padding:8px 12px; font-size:11px; margin-bottom:10px; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th { text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); padding:8px 8px; border-bottom:1px solid var(--border); white-space:nowrap; }
+  td { padding:9px 8px; border-bottom:1px solid #1E222B; vertical-align:top; }
+  .badge { display:inline-flex; align-items:center; gap:5px; font-family:monospace; font-size:10px; padding:2px 7px; border-radius:100px; font-weight:700; }
+  .badge.ok { color:var(--ok); background:#34D39918; }
+  .badge.fail { color:var(--danger); background:#F8717118; }
+  .badge.unverified { color:var(--warn); background:#FBBF2418; }
 
-const app = express();
-app.use(express.json({ limit: "5mb" }));
+  /* Ürün kartı (Prapazar tarzı) */
+  .pcard { border:1px solid var(--border); border-radius:10px; padding:14px; margin-bottom:12px; background:var(--surface); cursor:grab; transition:border-color .12s, background .12s, opacity .12s; }
+  .pcard.dragging { opacity:.4; }
+  .pcard.drag-over { border-color:var(--ok); background:#34D39912; }
+  .pcard-drag-handle { color:var(--muted); font-size:13px; cursor:grab; padding:2px 4px; flex-shrink:0; }
+  .pcard-head { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+  .pcard-thumb { width:44px; height:44px; object-fit:cover; border-radius:8px; background:#222; flex-shrink:0; }
+  .pcard-title { font-weight:700; }
+  .pcard-meta { font-size:11px; color:var(--muted); font-family:monospace; }
+  .pcard-code-row { display:flex; align-items:center; gap:6px; margin-top:1px; }
+  .pcard-code-input { background:transparent; border:1px solid transparent; border-radius:4px; padding:2px 5px; font-family:monospace; font-size:11px; color:var(--muted); width:150px; }
+  .pcard-code-input:hover { border-color:var(--border); }
+  .pcard-code-input:focus { border-color:var(--border); background:var(--surface2); color:var(--text); outline:none; }
+  select { background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:7px 9px; font-size:12px; color:var(--text); }
+  .pcard-central { margin-left:auto; display:flex; align-items:center; gap:8px; }
+  .pcard-platforms { display:flex; flex-wrap:wrap; gap:8px; }
+  .pchip { border:1px solid var(--border); border-radius:8px; padding:8px 10px; min-width:150px; }
+  .pchip-head { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:700; margin-bottom:6px; }
+  .pchip-dot { width:8px; height:8px; border-radius:50%; }
+  .pchip input[type=number] { width:70px; }
+  .pchip .status-btn { font-size:10px; padding:2px 8px; border-radius:100px; border:none; cursor:pointer; }
+  .status-btn.satista { background:#34D39918; color:var(--ok); }
+  .status-btn.pasif { background:#F8717118; color:var(--danger); }
+  .muted { color:var(--muted); font-size:11px; }
+  .amount { font-family:monospace; font-weight:600; }
+  #loginScreen { display:flex; align-items:center; justify-content:center; height:100vh; }
+  #loginBox { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:24px; width:280px; }
+  #loginBox input { width:100%; padding:9px 10px; border-radius:6px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:13px; margin:10px 0; }
+  #loginBox p.err { color:var(--danger); font-size:12px; }
+  .empty { text-align:center; color:#4B5563; padding:40px 0; }
+  .fetchedAt { font-size:10px; color:var(--muted); font-family:monospace; }
+  .panel { display:none; }
+  .panel.active { display:block; }
+  .toolbar { display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+  input[type=text], input[type=number] {
+    background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:7px 9px; font-size:12px; color:var(--text);
+  }
+  input.stockcell { width:58px; text-align:center; font-family:monospace; }
+  .search { flex:1; min-width:180px; position:relative; }
+  .search input { width:100%; padding-left:28px; }
+  .search::before { content:"🔎"; position:absolute; left:8px; top:50%; transform:translateY(-50%); font-size:11px; opacity:.5; }
+  .mismatch { border-color:var(--danger) !important; color:var(--danger) !important; }
+  .addform { display:grid; grid-template-columns:repeat(auto-fit, minmax(110px,1fr)); gap:8px; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:14px; margin-bottom:14px; }
+  .addform label { font-size:10px; color:var(--muted); text-transform:uppercase; display:block; margin-bottom:4px; }
+  .logrow { padding:9px 10px; border-bottom:1px solid #1E222B; font-size:11px; display:flex; justify-content:space-between; gap:10px; }
+  .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:9px 16px; font-size:12px; z-index:50; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+</style>
+</head>
+<body>
 
-const PORT = process.env.PORT || 3000;
-const PANEL_PASSWORD = process.env.PANEL_PASSWORD || "";
-const REFRESH_MINUTES = Number(process.env.REFRESH_INTERVAL_MINUTES || 15);
-const REPRICE_HOURS = Number(process.env.REPRICE_INTERVAL_HOURS || 4);
+<div id="loginScreen" style="display:none;">
+  <div id="loginBox">
+    <h1 style="margin-bottom:4px;">Ticaret Paneli</h1>
+    <p class="muted">Devam etmek için şifreni gir.</p>
+    <input id="pwInput" type="password" placeholder="Panel şifresi" />
+    <button style="width:100%" onclick="login()">Giriş yap</button>
+    <p class="err" id="loginErr"></p>
+  </div>
+</div>
 
-/* ------------------------------------------------------------------
-   Basit dosya tabanlı kalıcı depo (data/*.json)
------------------------------------------------------------------- */
-const DATA_DIR = path.join(__dirname, "data");
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);
+<div id="app" style="display:none;">
+  <header>
+    <div class="wrap">
+      <div class="headrow">
+        <div>
+          <h1>Ticaret Paneli</h1>
+          <div class="brand" id="brandLine"></div>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span class="fetchedAt" id="fetchedAt"></span>
+          <button class="ghost" id="refreshBtn" onclick="refresh(true)">Yenile</button>
+        </div>
+      </div>
+      <div class="tabs">
+        <div class="tab active" data-tab="orders" onclick="showTab('orders')">Siparişler</div>
+        <div class="tab" data-tab="stock" onclick="showTab('stock')">Stok</div>
+        <div class="tab" data-tab="match" onclick="showTab('match')">Eşleştirme</div>
+        <div class="tab" data-tab="compete" onclick="showTab('compete')">Rekabet</div>
+        <div class="tab" data-tab="backup" onclick="showTab('backup')">Yedekleme</div>
+        <div class="tab" data-tab="log" onclick="showTab('log')">Senkron Günlüğü</div>
+      </div>
+    </div>
+  </header>
 
-function loadJSON(file, fallback) {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(DATA_DIR, file), "utf8"));
-  } catch (e) {
-    return fallback;
+  <div class="wrap">
+    <div id="errArea"></div>
+    <div id="syncArea"></div>
+    <div id="unverifiedArea"></div>
+
+    <!-- SİPARİŞLER -->
+    <div class="panel active" id="panel-orders">
+      <div class="stats" id="orderStats"></div>
+      <table>
+        <thead><tr>
+          <th>Platform</th><th>Sipariş No</th><th>Müşteri / Şehir</th><th>Ürünler</th><th>Tutar</th><th>Durum</th><th>Tarih</th>
+        </tr></thead>
+        <tbody id="orderRows"></tbody>
+      </table>
+      <div id="ordersEmpty" class="empty" style="display:none;">Henüz sipariş bulunamadı.</div>
+    </div>
+
+    <!-- STOK -->
+    <div class="panel" id="panel-stock">
+      <div class="toolbar">
+        <div class="search"><input type="text" id="stockSearch" placeholder="Barkod veya ürün adı ara..." oninput="renderStock()"></div>
+        <select id="stockSort" onchange="renderStock()">
+          <option value="name-asc">Ada göre A-Z</option>
+          <option value="name-desc">Ada göre Z-A</option>
+          <option value="code-asc">Ana ürün koduna göre A-Z</option>
+          <option value="code-desc">Ana ürün koduna göre Z-A</option>
+          <option value="stock-desc">Merkezi stok: çoktan aza</option>
+          <option value="stock-asc">Merkezi stok: azdan çoğa</option>
+          <option value="category-asc">Kategoriye göre</option>
+        </select>
+        <button class="ghost small" onclick="toggleAddForm()">+ Ürün</button>
+        <span id="importButtons"></span>
+        <input type="file" id="importFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleImportFile(event)">
+      </div>
+      <p class="muted" style="margin:-6px 0 10px;">İki ürünü birleştirmek için birini diğerinin üzerine sürükleyip bırak.</p>
+
+      <div class="addform" id="addForm" style="display:none;">
+        <div><label>Ürün Kodu</label><input type="text" id="newBarcode"></div>
+        <div><label>Ürün Adı</label><input type="text" id="newName"></div>
+        <div><label>Kategori</label><input type="text" id="newCategory" placeholder="Ana Kategori -> Alt Kategori"></div>
+        <div><label>Merkezi Stok</label><input type="number" id="newCentral"></div>
+        <div id="addFormPlatformFields" style="grid-column:1/-1; display:flex; flex-wrap:wrap; gap:10px;"></div>
+        <div style="grid-column:1/-1; display:flex; justify-content:flex-end; gap:8px;">
+          <button class="ghost small" onclick="toggleAddForm()">Vazgeç</button>
+          <button class="small" onclick="addProduct()">Kaydet</button>
+        </div>
+      </div>
+
+      <div id="stockCards"></div>
+      <div id="stockEmpty" class="empty" style="display:none;">Henüz ürün yok. Excel yükle ya da elle ekle.</div>
+    </div>
+
+    <!-- YEDEKLEME -->
+    <div class="panel" id="panel-backup">
+      <div id="backupConfigWarn"></div>
+      <div class="toolbar" style="justify-content:space-between;">
+        <div>
+          <div class="muted" id="backupStatusLine">—</div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="ghost small" id="backupConnectBtn" style="display:none;" onclick="connectGoogleDrive()">Google ile Bağlan</button>
+          <button class="small" id="backupNowBtn" onclick="runBackupNow()">Şimdi Yedekle</button>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Dosya</th><th>Oluşturulma</th><th>Boyut</th><th></th></tr></thead>
+        <tbody id="backupRows"></tbody>
+      </table>
+      <div id="backupEmpty" class="empty" style="display:none;">Henüz Drive'da yedek yok.</div>
+    </div>
+
+    <!-- SENKRON GÜNLÜĞÜ -->
+    <div class="panel" id="panel-log">
+      <p class="muted" style="margin-bottom:10px;">Sipariş geldiğinde ya da elle "Gönder" dediğinde her platforma yapılan stok güncelleme denemeleri burada listelenir.</p>
+      <div id="logRows" style="border:1px solid var(--border); border-radius:8px; overflow:hidden;"></div>
+      <div id="logEmpty" class="empty" style="display:none;">Henüz bir senkron kaydı yok.</div>
+    </div>
+
+    <!-- EŞLEŞTİRME -->
+    <div class="panel" id="panel-match">
+      <p class="muted" style="margin-bottom:10px;">Barkodu aynı olan ürünler otomatik eşleşir. Burada, henüz bir platforma özel SKU'su tanımlanmamış Ana Ürünleri görüp onaylayabilir ya da farklı bir SKU girebilirsin.</p>
+      <div id="matchTabs" class="tabs" style="margin-bottom:14px;"></div>
+      <table>
+        <thead><tr><th>Ana Ürün</th><th>Varsayılan SKU (ürün koduyla aynı)</th><th>Bu platform için SKU</th><th></th></tr></thead>
+        <tbody id="matchRows"></tbody>
+      </table>
+      <div id="matchEmpty" class="empty" style="display:none;">Bu platform için eşleştirilmemiş ürün yok — hepsi eşleşti.</div>
+    </div>
+
+    <!-- REKABET -->
+    <div class="panel" id="panel-compete">
+      <p class="muted" style="margin-bottom:10px;">
+        Rakip ürün linkleri resmi bir API değil, herkese açık ürün sayfası okunarak takip edilir — sayfa tasarımı değişirse ayıklama geçici olarak bozulabilir.
+        Rakip fiyatları günde birkaç kez otomatik kontrol edilir; "Şimdi Kontrol Et" ile elle de tetikleyebilirsin.
+      </p>
+      <div class="toolbar">
+        <button class="ghost small" onclick="repriceAllNow()">Tüm Ürünleri Şimdi Kontrol Et</button>
+      </div>
+      <table>
+        <thead><tr><th>Ürün</th><th>Benim Fiyatım (TY)</th><th>En Düşük Rakip</th><th>Min / Maks</th><th>Otomatik</th><th>Rakip Linkleri</th><th></th></tr></thead>
+        <tbody id="competeRows"></tbody>
+      </table>
+      <div id="competeEmpty" class="empty" style="display:none;">Henüz ürün yok. Önce Stok sekmesinden ürün ekle.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+let state = { orders: [], products: [], log: [], platforms: [], matchStatus: {} };
+let importPlatform = null;
+
+async function checkAuth() {
+  const r = await fetch('/api/orders');
+  if (r.status === 401) { document.getElementById('loginScreen').style.display = 'flex'; return; }
+  document.getElementById('app').style.display = 'block';
+  await loadPlatforms();
+  renderOrders(await r.json());
+  await loadProducts();
+  await loadLog();
+  startPolling();
+}
+
+async function login() {
+  const password = document.getElementById('pwInput').value;
+  const r = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password}) });
+  const data = await r.json();
+  if (data.ok) {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    await loadPlatforms();
+    await refresh(false); await loadProducts(); await loadLog();
+    startPolling();
+  } else {
+    document.getElementById('loginErr').textContent = data.error || 'Giriş başarısız.';
   }
 }
-function saveJSON(file, data) {
-  fs.writeFileSync(path.join(DATA_DIR, file), JSON.stringify(data, null, 2));
+
+let polling = null;
+function startPolling() {
+  if (polling) return;
+  polling = setInterval(async () => { await refresh(false); await loadProducts(); await loadLog(); }, 30000);
 }
 
-// products: { [barcode]: { name, stocks: { hb, ty, n11, cs }, centralStock } }
-let products = loadJSON("products.json", {});
-let processedPackages = new Set(loadJSON("processed.json", []));
-let pushLog = loadJSON("push-log.json", []);
-
-function persistProducts() {
-  saveJSON("products.json", products);
-}
-function persistProcessed() {
-  saveJSON("processed.json", Array.from(processedPackages));
-}
-function persistPushLog() {
-  pushLog = pushLog.slice(-150);
-  saveJSON("push-log.json", pushLog);
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+  if (name === 'match') loadMatchStatus();
+  if (name === 'compete') renderCompete();
+  if (name === 'backup') { loadBackupStatus(); loadBackupList(); }
 }
 
-// products artık "ürün kodu" (code) altında toplanır. Her ürün, platform bazında
-// farklı bir barkod/SKU'ya bağlanabilir (skus: { hb: "...", ty: "...", ... }).
-// Bir platform için ayrıca bir SKU tanımlanmamışsa, o platformda ürün kodunun
-// kendisi SKU olarak kullanılır (geriye dönük uyumluluk).
-function ensureProduct(code, name) {
-  if (!products[code]) {
-    products[code] = {
-      name: name || "İsimsiz ürün",
-      category: "",
-      stocks: {},
-      centralStock: 0,
-      image: null,
-      skus: {},
-      prices: {}, // { platformId: number } — Prapazar'daki gibi her platformun kendi satış fiyatı
-      listingStatus: {}, // { platformId: 'satista' | 'pasif' }
-      pricing: { minPrice: null, maxPrice: null, myPrice: null, autoReprice: false, undercut: 0.01 },
-      competitors: [], // [{ url, label, lastPrice, lastCheckedAt, lastError, sellerName }]
-    };
-  }
-  if (!products[code].stocks) products[code].stocks = {};
-  if (!products[code].skus) products[code].skus = {};
-  if (!products[code].prices) products[code].prices = {};
-  if (!products[code].listingStatus) products[code].listingStatus = {};
-  if (products[code].category === undefined) products[code].category = "";
-  if (!products[code].pricing) products[code].pricing = { minPrice: null, maxPrice: null, myPrice: null, autoReprice: false, undercut: 0.01 };
-  if (!products[code].competitors) products[code].competitors = [];
-  return products[code];
+let matchActivePlatform = null;
+
+async function loadMatchStatus() {
+  const r = await fetch('/api/products/match-status');
+  if (r.status === 401) return;
+  const data = await r.json();
+  state.matchStatus = data.status || {};
+  const platformIds = Object.keys(state.matchStatus);
+  if (!matchActivePlatform || !platformIds.includes(matchActivePlatform)) matchActivePlatform = platformIds[0];
+
+  document.getElementById('matchTabs').innerHTML = platformIds.map(id => {
+    const pm = platformMeta(id);
+    const count = state.matchStatus[id].length;
+    return `<div class="tab ${id === matchActivePlatform ? 'active' : ''}" onclick="setMatchPlatform('${id}')" style="cursor:pointer;">${pm.name} ${count ? `<span class="badge">${count}</span>` : '✓'}</div>`;
+  }).join('');
+
+  renderMatchRows();
 }
 
-function skuForPlatform(code, platform) {
-  const p = products[code];
-  return (p?.skus?.[platform] || code || "").trim();
+function setMatchPlatform(id) {
+  matchActivePlatform = id;
+  loadMatchStatus();
 }
 
-// platform -> { sku: productCode } eşleşme dizini. Sipariş satırlarındaki barkodu
-// veya içe aktarma/siteden çekme satırlarındaki SKU'yu hangi ürün koduna ait
-// olduğunu bulmak için kullanılır.
-function buildSkuIndex() {
-  const platformIds = PLATFORMS.map((pl) => pl.id);
-  const index = {};
-  platformIds.forEach((id) => (index[id] = new Map()));
-  Object.entries(products).forEach(([code, p]) => {
-    platformIds.forEach((id) => {
-      const sku = (p.skus?.[id] || code || "").trim();
-      if (sku) index[id].set(sku, code);
-    });
+function renderMatchRows() {
+  const rows = (state.matchStatus[matchActivePlatform] || []);
+  const tbody = document.getElementById('matchRows');
+  document.getElementById('matchEmpty').style.display = rows.length ? 'none' : 'block';
+  tbody.innerHTML = '';
+  rows.forEach(item => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><b>${item.name}</b><div class="muted" style="font-family:monospace;">${item.code}</div></td>
+      <td class="muted" style="font-family:monospace;">${item.defaultSku}</td>
+      <td><input type="text" placeholder="${item.defaultSku}" id="matchsku_${item.code}" style="width:160px;"></td>
+      <td style="white-space:nowrap;">
+        <button class="ghost small" onclick="confirmMatch('${item.code}', true)">Varsayılanı Onayla</button>
+        <button class="small" onclick="confirmMatch('${item.code}', false)">Kaydet</button>
+      </td>`;
+    tbody.appendChild(tr);
   });
-  return index;
 }
 
-/* ------------------------------------------------------------------
-   Basit oturum koruması (tek kullanıcılı araç varsayımı)
------------------------------------------------------------------- */
-const sessions = new Set();
-
-function parseCookies(req) {
-  const header = req.headers.cookie || "";
-  return Object.fromEntries(
-    header
-      .split(";")
-      .filter(Boolean)
-      .map((c) => {
-        const [k, ...v] = c.trim().split("=");
-        return [k, decodeURIComponent(v.join("="))];
-      })
-  );
-}
-
-app.post("/api/login", (req, res) => {
-  if (!PANEL_PASSWORD) return res.json({ ok: true });
-  if (req.body?.password === PANEL_PASSWORD) {
-    const token = crypto.randomBytes(24).toString("hex");
-    sessions.add(token);
-    res.setHeader(
-      "Set-Cookie",
-      `siparis_session=${token}; HttpOnly; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax`
-    );
-    return res.json({ ok: true });
+async function confirmMatch(code, useDefault) {
+  const platform = matchActivePlatform;
+  const sku = useDefault ? code : (document.getElementById('matchsku_' + code).value.trim() || code);
+  const resp = await fetch('/api/products', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, skus: { [platform]: sku } })
+  });
+  const data = await resp.json();
+  const conflict = (data.conflicts || [])[0];
+  if (conflict) {
+    const yes = confirm(`Bu SKU zaten "${conflict.name}" adlı üründe kayıtlı.\nİki ürünü birleştirip tek Ana Ürün yapmak ister misin?`);
+    if (yes) {
+      await fetch('/api/products/merge', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: conflict.code, to: code })
+      });
+      toast('Ürünler birleştirildi.');
+    } else {
+      toast('Vazgeçildi, bu SKU atanmadı.');
+      return;
+    }
+  } else {
+    toast('Eşleştirildi.');
   }
-  return res.status(401).json({ ok: false, error: "Şifre yanlış." });
-});
-
-function requireAuth(req, res, next) {
-  if (!PANEL_PASSWORD) return next();
-  const cookies = parseCookies(req);
-  if (cookies.siparis_session && sessions.has(cookies.siparis_session)) return next();
-  return res.status(401).json({ ok: false, error: "Giriş gerekli." });
+  await loadMatchStatus();
+  await loadProducts();
 }
 
-function escapeXml(str) {
-  return String(str).replace(/[<>&'"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" }[c]));
+async function loadPlatforms() {
+  const r = await fetch('/api/platforms');
+  if (r.status === 401) return;
+  const data = await r.json();
+  state.platforms = data.platforms || [];
+
+  document.getElementById('brandLine').innerHTML = state.platforms
+    .map(p => `<span style="color:${p.color}">${p.name}${p.configured ? '' : ' (yapılandırılmadı)'}</span>`).join(' × ');
+
+  document.getElementById('importButtons').innerHTML = state.platforms
+    .filter(p => p.configured)
+    .map(p => `<button class="ghost small" onclick="triggerImport('${p.id}')">${p.name} İçe Aktar</button>`).join(' ')
+    + ' '
+    + state.platforms
+      .filter(p => p.configured && p.pullable)
+      .map(p => `<button class="ghost small" onclick="triggerPull('${p.id}')">${p.name} Siteden Çek${p.stockPullVerified ? '' : ' (deneysel)'}</button>`).join(' ');
+
+  const unverified = state.platforms.filter(p => p.configured && !p.verified);
+  document.getElementById('unverifiedArea').innerHTML = unverified.length
+    ? `<div class="warnbox">${unverified.map(p => p.name).join(', ')} entegrasyonunun uç nokta/alan adları resmi dokümandan tam doğrulanamadı — ilk denemede bir hata çıkarsa Senkron Günlüğü'ndeki mesajı ilet, birlikte düzeltelim.</div>`
+    : '';
+
+  // Stok kartlarında hangi platformların gösterileceği (tablo değil, kart tasarımı kullanılıyor)
+  const activePlatforms = state.platforms.filter(p => p.configured);
+
+  document.getElementById('addFormPlatformFields').innerHTML = activePlatforms.map(p =>
+    `<div><label>${p.name} Stok</label><input type="number" id="new_${p.id}"></div>
+     <div><label>${p.name} Fiyat</label><input type="number" step="0.01" id="newprice_${p.id}"></div>`
+  ).join('');
 }
 
-/* ==================================================================
-   HEPSİBURADA
-================================================================== */
-function hbConfigured() {
-  return !!(process.env.HB_MERCHANT_ID && process.env.HB_USERNAME && process.env.HB_PASSWORD);
-}
-
-async function fetchHepsiburadaOrders() {
-  if (!hbConfigured()) return { platform: "hb", error: "Hepsiburada API bilgileri .env dosyasında eksik.", orders: [] };
-  const { HB_MERCHANT_ID, HB_USERNAME, HB_PASSWORD, HB_ENV } = process.env;
-  const host = HB_ENV === "test" ? "oms-external-sit.hepsiburada.com" : "oms-external.hepsiburada.com";
-  const url = `https://${host}/packages/merchantid/${HB_MERCHANT_ID}?timespan=24`;
-
+async function refresh(force) {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true; btn.textContent = 'Yükleniyor...';
   try {
-    const resp = await axios.get(url, {
-      auth: { username: HB_USERNAME, password: HB_PASSWORD },
-      headers: { "User-Agent": `${HB_MERCHANT_ID} - SelfIntegration`, Accept: "application/json" },
-      timeout: 20000,
-    });
-    const raw = Array.isArray(resp.data) ? resp.data : resp.data?.items || resp.data?.Items || [];
-    return { platform: "hb", error: null, orders: raw.map(normalizeHbPackage) };
-  } catch (err) {
-    const msg =
-      err.response?.status === 401 || err.response?.status === 403
-        ? "Hepsiburada kimlik doğrulama hatası — kullanıcı adı/şifreyi kontrol et."
-        : err.response?.data
-        ? `Hepsiburada hata: ${JSON.stringify(err.response.data).slice(0, 300)}`
-        : `Hepsiburada bağlantı hatası: ${err.message}`;
-    return { platform: "hb", error: msg, orders: [] };
+    const r = await fetch('/api/orders' + (force ? '?force=1' : ''));
+    if (r.status === 401) { location.reload(); return; }
+    renderOrders(await r.json());
+    if (force) { await loadProducts(); await loadLog(); }
+  } finally {
+    btn.disabled = false; btn.textContent = 'Yenile';
   }
 }
 
-function normalizeHbPackage(pkg) {
-  const items = pkg.Items || pkg.items || pkg.LineItems || pkg.lineItems || [];
-  const lines = items.map((it) => ({
-    barcode: String(
-      it.MerchantSku || it.merchantSku || it.Sku || it.sku || it.HepsiburadaSku || it.hepsiburadaSku || it.Barcode || it.barcode || ""
-    ).trim(),
-    quantity: Number(it.Quantity || it.quantity || 1),
-    name: it.ProductName || it.productName || it.Name || "",
-  }));
-  const productSummary = lines.map((l) => `${l.name || l.barcode || "Ürün"} x${l.quantity}`).join(", ");
-  const total =
-    pkg.TotalPrice ?? pkg.totalPrice ?? pkg.Price ?? pkg.price ??
-    items.reduce((s, it) => s + Number(it.Price || it.price || 0) * Number(it.Quantity || it.quantity || 1), 0);
+function fmtDate(ts) {
+  if (!ts) return '—';
+  return new Date(Number(ts)).toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+}
 
-  return {
-    platform: "hb",
-    orderNumber: pkg.OrderNumber || pkg.orderNumber || pkg.PackageNumber || pkg.packageNumber || "—",
-    packageId: String(pkg.PackageNumber || pkg.packageNumber || pkg.Id || pkg.id || pkg.OrderNumber || pkg.orderNumber || ""),
-    customer: pkg.CustomerName || pkg.customerName || pkg.ShippingAddress?.Name || "Müşteri",
-    city: pkg.ShippingAddress?.City || pkg.shippingAddress?.city || pkg.City || "",
-    productSummary: productSummary || "—",
-    amount: Number(total) || 0,
-    status: pkg.Status || pkg.status || "Open",
-    date: pkg.OrderDate || pkg.orderDate || pkg.PackageDate || pkg.packageDate || null,
-    lines,
+function platformMeta(id) {
+  return state.platforms.find(p => p.id === id) || { name: id.toUpperCase(), color: '#999' };
+}
+
+function renderOrders(data) {
+  const orders = data.orders || [];
+  const activePlatforms = state.platforms.filter(p => p.configured);
+  document.getElementById('orderStats').innerHTML =
+    `<div class="stat"><div class="label">TOPLAM (7 gün)</div><div class="value">${orders.length}</div></div>` +
+    activePlatforms.map(p => `<div class="stat"><div class="label">${p.name.toUpperCase()}</div><div class="value" style="color:${p.color}">${orders.filter(o=>o.platform===p.id).length}</div></div>`).join('');
+
+  document.getElementById('fetchedAt').textContent = data.fetchedAt ? 'Son güncelleme: ' + new Date(data.fetchedAt).toLocaleTimeString('tr-TR') : '';
+
+  const errArea = document.getElementById('errArea');
+  errArea.innerHTML = '';
+  (data.errors || []).forEach(e => {
+    const div = document.createElement('div'); div.className = 'errbox'; div.textContent = e; errArea.appendChild(div);
+  });
+
+  const syncArea = document.getElementById('syncArea');
+  syncArea.innerHTML = '';
+  if (data.sync && data.sync.changedCount > 0) {
+    const div = document.createElement('div');
+    div.className = 'syncbox';
+    div.textContent = `Bu döngüde ${data.sync.newOrders} yeni sipariş işlendi, ${data.sync.changedCount} ürünün stoğu tüm platformlara otomatik gönderildi.`;
+    syncArea.appendChild(div);
+  }
+
+  const rows = document.getElementById('orderRows');
+  rows.innerHTML = '';
+  document.getElementById('ordersEmpty').style.display = orders.length ? 'none' : 'block';
+  orders.forEach(o => {
+    const pm = platformMeta(o.platform);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="badge" style="color:${pm.color}; background:${pm.color}18;">${pm.name}</span></td>
+      <td>${o.orderNumber}</td>
+      <td>${o.customer}<div class="muted">${o.city || ''}</div></td>
+      <td>${o.productSummary}</td>
+      <td class="amount">${o.amount ? o.amount.toLocaleString('tr-TR', {minimumFractionDigits:2}) + ' ₺' : '—'}</td>
+      <td>${o.status}</td>
+      <td class="muted">${fmtDate(o.date)}</td>`;
+    rows.appendChild(tr);
+  });
+}
+
+async function loadProducts() {
+  const r = await fetch('/api/products');
+  if (r.status === 401) return;
+  const data = await r.json();
+  state.products = data.products || [];
+  renderStock();
+  renderCompete();
+}
+
+function renderStock() {
+  const q = (document.getElementById('stockSearch').value || '').trim().toLocaleLowerCase('tr');
+  let list = state.products;
+  if (q) {
+    const words = q.split(/\s+/).filter(Boolean);
+    list = list.filter(p => {
+      const skuValues = Object.values(p.skus || {});
+      const haystacks = [p.barcode, p.name||'', p.category||'', ...skuValues.map(s => String(s||''))]
+        .map(s => s.toLocaleLowerCase('tr'));
+      return words.every(w => haystacks.some(h => h.includes(w)));
+    });
+  }
+
+  const sortVal = document.getElementById('stockSort').value;
+  const collator = new Intl.Collator('tr');
+  list = [...list].sort((a, b) => {
+    switch (sortVal) {
+      case 'name-desc': return collator.compare(b.name || '', a.name || '');
+      case 'code-asc': return collator.compare(a.code || '', b.code || '');
+      case 'code-desc': return collator.compare(b.code || '', a.code || '');
+      case 'stock-asc': return (Number(a.centralStock) || 0) - (Number(b.centralStock) || 0);
+      case 'stock-desc': return (Number(b.centralStock) || 0) - (Number(a.centralStock) || 0);
+      case 'category-asc': return collator.compare(a.category || '', b.category || '');
+      default: return collator.compare(a.name || '', b.name || '');
+    }
+  });
+
+  const activePlatforms = state.platforms.filter(p => p.configured);
+  const wrap = document.getElementById('stockCards');
+  wrap.innerHTML = '';
+  document.getElementById('stockEmpty').style.display = list.length ? 'none' : 'block';
+
+  list.forEach(p => {
+    const c = Number(p.centralStock) || 0;
+    const thumb = p.image
+      ? `<img class="pcard-thumb" src="${p.image}" alt="">`
+      : `<div class="pcard-thumb" style="display:flex;align-items:center;justify-content:center;font-size:18px;">📦</div>`;
+
+    const chips = activePlatforms.map(pl => {
+      const stockVal = p.stocks?.[pl.id] ?? 0;
+      const mismatch = Number(stockVal) !== c;
+      const priceVal = p.prices?.[pl.id] ?? '';
+      const status = p.listingStatus?.[pl.id] || 'satista';
+      const platformSku = p.skus?.[pl.id] || p.code;
+      return `
+        <div class="pchip">
+          <div class="pchip-head"><span class="pchip-dot" style="background:${pl.color}"></span>${pl.name}
+            <button class="status-btn ${status}" onclick="toggleStatus('${p.code}','${pl.id}','${status}')">${status === 'pasif' ? 'Pasif' : 'Satışta'}</button>
+          </div>
+          <div class="muted" style="font-family:monospace; font-size:10px; margin-bottom:4px;">Stok kodu: ${platformSku}</div>
+          <div style="display:flex; gap:6px; align-items:center; font-size:11px;">
+            <span class="muted">₺</span>
+            <input type="number" step="0.01" value="${priceVal}" onchange="updatePrice('${p.code}','${pl.id}',this.value)" placeholder="fiyat">
+          </div>
+          <div style="display:flex; gap:6px; align-items:center; font-size:11px; margin-top:4px;">
+            <span class="muted">Adet</span>
+            <input class="stockcell ${mismatch ? 'mismatch' : ''}" type="number" value="${stockVal}" onchange="updateStock('${p.code}','${pl.id}',this.value)">
+          </div>
+        </div>`;
+    }).join('');
+
+    const card = document.createElement('div');
+    card.className = 'pcard';
+    card.draggable = true;
+    card.dataset.code = p.code;
+    card.innerHTML = `
+      <div class="pcard-head">
+        <span class="pcard-drag-handle" title="Birleştirmek için sürükle">⠿</span>
+        ${thumb}
+        <div>
+          <div class="pcard-title">${p.name}</div>
+          ${p.category ? `<div class="muted" style="font-size:11px;">${p.category}</div>` : ''}
+          <div class="pcard-code-row">
+            <input class="pcard-code-input" type="text" value="${p.code}" spellcheck="false" title="Ana ürün kodu — değiştirmek için düzenleyip Enter'a bas ya da başka bir yere tıkla" onchange="renameProduct('${p.code}', this.value)">
+            ${competeBadgeHtml(p)}
+          </div>
+        </div>
+        <div class="pcard-central">
+          <div style="text-align:right;">
+            <div class="muted" style="font-size:10px;">MERKEZİ STOK</div>
+            <input class="stockcell" style="width:70px; text-align:right;" type="number" value="${c}" onchange="updateCentral('${p.code}',this.value)">
+          </div>
+          <button class="ghost small" onclick="pushProduct('${p.code}')">Gönder</button>
+          <button class="ghost small" onclick="deleteProduct('${p.code}')">Sil</button>
+        </div>
+      </div>
+      <div class="pcard-platforms">${chips || '<span class="muted" style="font-size:12px;">Yapılandırılmış platform yok.</span>'}</div>
+    `;
+    attachDragHandlers(card);
+    wrap.appendChild(card);
+  });
+}
+
+/* --- Ürün kartlarını sürükleyerek birleştirme --- */
+let dragSourceCode = null;
+
+function attachDragHandlers(card) {
+  card.addEventListener('dragstart', (e) => {
+    dragSourceCode = card.dataset.code;
+    card.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', card.dataset.code);
+  });
+  card.addEventListener('dragend', () => {
+    card.classList.remove('dragging');
+    document.querySelectorAll('.pcard.drag-over').forEach(el => el.classList.remove('drag-over'));
+    dragSourceCode = null;
+  });
+  card.addEventListener('dragover', (e) => {
+    if (!dragSourceCode || dragSourceCode === card.dataset.code) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    card.classList.add('drag-over');
+  });
+  card.addEventListener('dragleave', () => {
+    card.classList.remove('drag-over');
+  });
+  card.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    card.classList.remove('drag-over');
+    const fromCode = dragSourceCode;
+    const toCode = card.dataset.code;
+    if (!fromCode || fromCode === toCode) return;
+    const fromP = state.products.find(p => p.code === fromCode);
+    const toP = state.products.find(p => p.code === toCode);
+    const fromName = fromP ? fromP.name : fromCode;
+    const toName = toP ? toP.name : toCode;
+    const ok = confirm(`"${fromName}" ürününü "${toName}" ile birleştirmek istiyor musun?\n\nSKU'lar ve platform stokları "${toName}" altında birleşecek, "${fromName}" silinecek. Bu işlem geri alınamaz.`);
+    if (!ok) return;
+    await mergeProducts(fromCode, toCode);
+  });
+}
+
+async function mergeProducts(fromCode, toCode) {
+  toast('Ürünler birleştiriliyor…');
+  try {
+    const resp = await fetch('/api/products/merge', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: fromCode, to: toCode })
+    });
+    const data = await resp.json();
+    if (!data.ok) { toast(data.error || 'Birleştirilemedi.'); return; }
+    toast('Ürünler birleştirildi.');
+    await loadProducts();
+  } catch (e) {
+    toast('Birleştirme hatası: ' + e.message);
+  }
+}
+
+// Ürün kartında Ana Ürün Kodu'nun yanında gösterilen küçük rekabet özeti.
+// Rekabet sekmesindeki mantıkla aynı: en düşük rakip fiyatı, benim fiyatımdan
+// düşükse/eşitse yeşil "en ucuz", değilse kırmızı rakip fiyatı gösterir.
+function competeBadgeHtml(p) {
+  const competitors = p.competitors || [];
+  if (!competitors.length) return '';
+  const lowestVals = competitors.map(c => c.lastPrice).filter(n => typeof n === 'number' && n > 0);
+  if (!lowestVals.length) return '<span class="muted" style="font-size:10px;">rakip: kontrol bekliyor</span>';
+  const lowestVal = Math.min(...lowestVals);
+  const myPrice = p.pricing?.myPrice;
+  const ok = myPrice != null && myPrice <= lowestVal;
+  return `<span class="badge ${ok ? 'ok' : 'fail'}" title="En düşük rakip fiyatı">${ok ? 'en ucuz sensin' : 'rakip'}: ${lowestVal.toFixed(2)} ₺</span>`;
+}
+
+async function renameProduct(oldCode, newCodeRaw) {
+  const newCode = (newCodeRaw || '').trim();
+  if (!newCode || newCode === oldCode) { renderStock(); return; }
+  const resp = await fetch(`/api/products/${encodeURIComponent(oldCode)}/rename`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ newCode })
+  });
+  const data = await resp.json();
+  if (!data.ok) { toast(data.error || 'Ana ürün kodu değiştirilemedi.'); renderStock(); return; }
+  toast('Ana ürün kodu güncellendi.');
+  await loadProducts();
+}
+
+function toggleAddForm() {
+  const f = document.getElementById('addForm');
+  f.style.display = f.style.display === 'none' ? 'grid' : 'none';
+}
+
+async function addProduct() {
+  const barcode = document.getElementById('newBarcode').value.trim();
+  if (!barcode) { toast('Barkod/SKU girmelisin.'); return; }
+  const stocks = {}, prices = {};
+  state.platforms.filter(p => p.configured).forEach(p => {
+    const stockEl = document.getElementById('new_' + p.id);
+    if (stockEl) stocks[p.id] = stockEl.value;
+    const priceEl = document.getElementById('newprice_' + p.id);
+    if (priceEl) prices[p.id] = priceEl.value;
+  });
+  const body = {
+    barcode,
+    name: document.getElementById('newName').value,
+    category: document.getElementById('newCategory').value,
+    centralStock: document.getElementById('newCentral').value,
+    stocks, prices
   };
+  await fetch('/api/products', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  document.getElementById('newBarcode').value = '';
+  document.getElementById('newName').value = '';
+  document.getElementById('newCategory').value = '';
+  document.getElementById('newCentral').value = '';
+  state.platforms.filter(p => p.configured).forEach(p => {
+    const stockEl = document.getElementById('new_' + p.id); if (stockEl) stockEl.value = '';
+    const priceEl = document.getElementById('newprice_' + p.id); if (priceEl) priceEl.value = '';
+  });
+  toggleAddForm();
+  await loadProducts();
+  toast('Ürün kaydedildi.');
 }
 
-// Mevcut stok/ürün listesini Hepsiburada'dan çekme (best-effort — resmi dokümandan
-// tam doğrulanamadı, uç nokta yapısı push tarafıyla aynı host/desen üzerinden tahmin edildi).
-async function fetchStockHepsiburada() {
-  if (!hbConfigured()) return { platform: "hb", error: "Hepsiburada API bilgileri .env dosyasında eksik.", rows: [] };
-  const { HB_MERCHANT_ID, HB_USERNAME, HB_PASSWORD, HB_ENV } = process.env;
-  const host = HB_ENV === "test" ? "listing-external-sit.hepsiburada.com" : "listing-external.hepsiburada.com";
-  const url = `https://${host}/listings/merchantid/${HB_MERCHANT_ID}`;
-  const rows = [];
+async function updateStock(barcode, platformId, value) {
+  await fetch('/api/products', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ barcode, stocks: { [platformId]: value } }) });
+  await loadProducts();
+}
+
+async function updatePrice(barcode, platformId, value) {
+  await fetch('/api/products', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ barcode, prices: { [platformId]: value } }) });
+  await loadProducts();
+}
+
+async function toggleStatus(barcode, platformId, currentStatus) {
+  const next = currentStatus === 'pasif' ? 'satista' : 'pasif';
+  await fetch('/api/products', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ barcode, listingStatus: { [platformId]: next } }) });
+  await loadProducts();
+}
+
+async function updateCentral(barcode, value) {
+  await fetch('/api/products', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ barcode, centralStock: value }) });
+  await loadProducts();
+}
+
+async function deleteProduct(barcode) {
+  await fetch('/api/products/' + encodeURIComponent(barcode), { method:'DELETE' });
+  await loadProducts();
+}
+
+async function pushProduct(barcode) {
+  toast('Gönderiliyor...');
+  const r = await fetch(`/api/products/${encodeURIComponent(barcode)}/push`, { method:'POST' });
+  const data = await r.json();
+  const summary = Object.entries(data.results || {}).map(([id, res]) => `${platformMeta(id).name} ${res.ok ? '✓' : '✗'}`).join(' ');
+  toast(summary || 'Tamamlandı');
+  await loadProducts(); await loadLog();
+}
+
+function renderCompete() {
+  const tbody = document.getElementById('competeRows');
+  document.getElementById('competeEmpty').style.display = state.products.length ? 'none' : 'block';
+  tbody.innerHTML = '';
+  state.products.forEach(p => {
+    const pricing = p.pricing || { minPrice: null, maxPrice: null, myPrice: null, autoReprice: false, undercut: 0.01 };
+    const competitors = p.competitors || [];
+    const lowest = competitors.map(c => c.lastPrice).filter(n => typeof n === 'number' && n > 0);
+    const lowestVal = lowest.length ? Math.min(...lowest) : null;
+    const badge = lowestVal != null
+      ? (pricing.myPrice != null && pricing.myPrice <= lowestVal
+          ? `<span class="badge ok">${lowestVal.toFixed(2)} ₺ (en ucuz sensin)</span>`
+          : `<span class="badge fail">${lowestVal.toFixed(2)} ₺</span>`)
+      : '<span class="muted">veri yok</span>';
+    const linkList = competitors.map(c => {
+      const status = c.lastError ? `<span style="color:var(--danger)">hata: ${c.lastError}</span>` : (c.lastPrice ? `${c.lastPrice.toFixed(2)} ₺` : 'kontrol bekliyor');
+      return `<div class="muted" style="font-size:11px; word-break:break-all;">${c.url}<br>${status}</div>`;
+    }).join('<hr style="border-color:var(--border); margin:4px 0;">');
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><b>${p.name}</b><div class="muted" style="font-family:monospace;">${p.code}</div></td>
+      <td>${pricing.myPrice != null ? pricing.myPrice.toFixed(2) + ' ₺' : '-'}</td>
+      <td>${badge}</td>
+      <td>
+        <input type="number" step="0.01" placeholder="Min" id="min_${p.code}" value="${pricing.minPrice ?? ''}" style="width:70px;">
+        <input type="number" step="0.01" placeholder="Maks" id="max_${p.code}" value="${pricing.maxPrice ?? ''}" style="width:70px;">
+      </td>
+      <td><input type="checkbox" id="auto_${p.code}" ${pricing.autoReprice ? 'checked' : ''}></td>
+      <td style="min-width:220px;">
+        <textarea id="urls_${p.code}" rows="2" style="width:100%; font-size:11px;" placeholder="Her satıra bir rakip ürün linki">${competitors.map(c => c.url).join('\n')}</textarea>
+        <div>${linkList}</div>
+      </td>
+      <td style="white-space:nowrap;">
+        <button class="ghost small" onclick="saveCompete('${p.code}')">Kaydet</button>
+        <button class="small" onclick="repriceNow('${p.code}')">Şimdi Kontrol Et</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function saveCompete(code) {
+  const minPrice = document.getElementById('min_' + code).value;
+  const maxPrice = document.getElementById('max_' + code).value;
+  const autoReprice = document.getElementById('auto_' + code).checked;
+  const competitorUrls = document.getElementById('urls_' + code).value.split('\n').map(s => s.trim()).filter(Boolean);
+  const resp = await fetch(`/api/products/${encodeURIComponent(code)}/pricing`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ minPrice, maxPrice, autoReprice, competitorUrls })
+  });
+  const data = await resp.json();
+  if (!data.ok) { toast(data.error || 'Kaydedilemedi.'); return; }
+  toast('Kaydedildi.');
+  await loadProducts();
+}
+
+async function repriceNow(code) {
+  toast('Rakip fiyatları kontrol ediliyor…');
+  const resp = await fetch(`/api/products/${encodeURIComponent(code)}/reprice-check`, { method: 'POST' });
+  const data = await resp.json();
+  if (!data.ok) { toast(data.error || 'Kontrol başarısız.'); return; }
+  toast(data.pushResult ? `Yeni fiyat gönderildi: ${data.pushResult.newPrice} ₺` : 'Kontrol tamamlandı, fiyat değişmedi.');
+  await loadProducts();
+}
+
+async function repriceAllNow() {
+  toast('Tüm ürünler kontrol ediliyor… bu biraz sürebilir.');
+  const resp = await fetch('/api/reprice-all', { method: 'POST' });
+  const data = await resp.json();
+  toast(`${data.checked || 0} ürün kontrol edildi.`);
+  await loadProducts();
+}
+
+function triggerImport(platform) {
+  importPlatform = platform;
+  document.getElementById('importFile').click();
+}
+
+async function triggerPull(platform) {
+  const pm = platformMeta(platform);
+  toast(`${pm.name}: stok listesi siteden çekiliyor…`);
   try {
-    let offset = 0;
-    const limit = 200;
-    for (let page = 0; page < 25; page++) {
-      const resp = await axios.get(url, {
-        auth: { username: HB_USERNAME, password: HB_PASSWORD },
-        params: { limit, offset },
-        headers: { "User-Agent": `${HB_MERCHANT_ID} - SelfIntegration`, Accept: "application/json" },
-        timeout: 20000,
-      });
-      const items = resp.data?.listings || resp.data?.Listings || resp.data?.items || (Array.isArray(resp.data) ? resp.data : []);
-      if (!items.length) break;
-      items.forEach((it) => {
-        const barcode = String(it.MerchantSku || it.merchantSku || it.Sku || it.sku || "").trim();
-        if (!barcode) return;
-        const price = Number(it.Price ?? it.price ?? it.SalePrice ?? it.salePrice ?? 0) || undefined;
-        rows.push({
-          barcode,
-          stock: Number(it.AvailableStock ?? it.availableStock ?? 0),
-          name: it.ProductName || it.productName || "",
-          price,
-        });
-      });
-      if (items.length < limit) break;
-      offset += limit;
+    const resp = await fetch('/api/products/pull', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ platform })
+    });
+    const result = await resp.json();
+    if (!resp.ok || !result.ok) {
+      toast(`${pm.name} hata: ${result.error || 'bilinmeyen hata'}`);
+      return;
     }
-    return { platform: "hb", error: null, rows };
-  } catch (err) {
-    const msg =
-      err.response?.status === 401 || err.response?.status === 403
-        ? "Hepsiburada kimlik doğrulama hatası — kullanıcı adı/şifreyi kontrol et."
-        : err.response?.data
-        ? `Hepsiburada hata: ${JSON.stringify(err.response.data).slice(0, 300)}`
-        : `Hepsiburada bağlantı hatası: ${err.message}`;
-    return { platform: "hb", error: msg, rows: [] };
+    toast(`${pm.name}: ${result.total} ürün bulundu (${result.created} yeni, ${result.updated} güncellendi).`);
+    loadProducts();
+  } catch (e) {
+    toast(`${pm.name} bağlantı hatası: ${e.message}`);
   }
 }
 
-async function pushStockToHepsiburada(barcode, quantity) {
-  if (!hbConfigured()) return { ok: false, message: "Hepsiburada API bilgisi eksik." };
-  const { HB_MERCHANT_ID, HB_USERNAME, HB_PASSWORD, HB_ENV } = process.env;
-  const host = HB_ENV === "test" ? "listing-external-sit.hepsiburada.com" : "listing-external.hepsiburada.com";
-  const url = `https://${host}/listings/merchantid/${HB_MERCHANT_ID}/stock-uploads`;
-  const qty = Math.max(0, Math.floor(Number(quantity) || 0));
-  const xml =
-    `<?xml version="1.0" encoding="utf-8"?>` +
-    `<listings><listing><MerchantSku>${escapeXml(barcode)}</MerchantSku>` +
-    `<AvailableStock>${qty}</AvailableStock></listing></listings>`;
-  try {
-    const resp = await axios.post(url, xml, {
-      auth: { username: HB_USERNAME, password: HB_PASSWORD },
-      headers: { "Content-Type": "application/xml", Accept: "application/json", "User-Agent": `${HB_MERCHANT_ID} - SelfIntegration` },
-      timeout: 15000,
+function handleImportFile(e) {
+  const file = e.target.files?.[0];
+  e.target.value = '';
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (evt) => {
+    const wb = XLSX.read(evt.target.result, { type: 'array' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    if (!rows.length) { toast('Dosyada veri bulunamadı.'); return; }
+    const headers = rows[0].map(String);
+    const guess = (keywords) => headers.findIndex(h => keywords.some(k => h.toLocaleLowerCase('tr').includes(k)));
+    const barcodeCol = guess(['barkod','sku','stok kod','ürün kod','urun kod']);
+    const stockCol = guess(['stok adedi','stok miktar','miktar','adet','stok']);
+    const nameCol = guess(['ürün adı','urun adi','başlık','baslik','ad']);
+    const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim() !== ''));
+    const parsed = dataRows.map(r => ({
+      barcode: String(r[barcodeCol >= 0 ? barcodeCol : 0] ?? '').trim(),
+      stock: Number(String(r[stockCol >= 0 ? stockCol : 1]).replace(/[^\d.-]/g,'')) || 0,
+      name: nameCol >= 0 ? String(r[nameCol] ?? '').trim() : '',
+    }));
+    const resp = await fetch('/api/products/import', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ platform: importPlatform, rows: parsed })
     });
-    return { ok: true, message: "Gönderildi", trackingId: resp.data?.Id || resp.data?.id || null };
-  } catch (err) {
-    return { ok: false, message: err.response?.data ? JSON.stringify(err.response.data).slice(0, 250) : err.message };
-  }
-}
-
-/* ==================================================================
-   TRENDYOL
-================================================================== */
-function tyConfigured() {
-  return !!(process.env.TY_SELLER_ID && process.env.TY_API_KEY && process.env.TY_API_SECRET);
-}
-
-async function fetchTrendyolOrders() {
-  if (!tyConfigured()) return { platform: "ty", error: "Trendyol API bilgileri .env dosyasında eksik.", orders: [] };
-  const { TY_SELLER_ID, TY_API_KEY, TY_API_SECRET, TY_ENV } = process.env;
-  const host = TY_ENV === "test" ? "stageapigw.trendyol.com" : "apigw.trendyol.com";
-  const endDate = Date.now();
-  const startDate = endDate - 7 * 24 * 60 * 60 * 1000;
-  const url = `https://${host}/integration/order/sellers/${TY_SELLER_ID}/v2/orders`;
-
-  try {
-    const resp = await axios.get(url, {
-      auth: { username: TY_API_KEY, password: TY_API_SECRET },
-      params: { startDate, endDate, orderByField: "PackageLastModifiedDate", orderByDirection: "DESC", size: 200 },
-      headers: { "User-Agent": `${TY_SELLER_ID} - SelfIntegration`, Accept: "application/json" },
-      timeout: 20000,
-    });
-    const content = resp.data?.content || [];
-    return { platform: "ty", error: null, orders: content.map(normalizeTyPackage) };
-  } catch (err) {
-    const msg =
-      err.response?.status === 401 || err.response?.status === 403
-        ? "Trendyol kimlik doğrulama hatası — API key/secret veya seller ID'yi kontrol et."
-        : err.response?.data
-        ? `Trendyol hata: ${JSON.stringify(err.response.data).slice(0, 300)}`
-        : `Trendyol bağlantı hatası: ${err.message}`;
-    return { platform: "ty", error: msg, orders: [] };
-  }
-}
-
-function normalizeTyPackage(pkg) {
-  const lines = (pkg.lines || []).map((l) => ({
-    barcode: String(l.barcode || l.stockCode || "").trim(),
-    quantity: Number(l.quantity || 1),
-    name: l.productName || l.stockCode || "",
-  }));
-  return {
-    platform: "ty",
-    orderNumber: pkg.orderNumber || String(pkg.shipmentPackageId || "—"),
-    packageId: String(pkg.shipmentPackageId || ""),
-    customer: `${pkg.customerFirstName || ""} ${pkg.customerLastName || ""}`.trim() || "Müşteri",
-    city: pkg.shipmentAddress?.city || "",
-    productSummary: lines.map((l) => `${l.name || l.barcode || "Ürün"} x${l.quantity}`).join(", ") || "—",
-    amount: Number(pkg.packageTotalPrice ?? pkg.packageGrossAmount ?? 0),
-    status: pkg.shipmentPackageStatus || pkg.status || "—",
-    date: pkg.orderDate || null,
-    lines,
+    const result = await resp.json();
+    toast(`${platformMeta(importPlatform).name}: ${result.updated} güncellendi, ${result.created} yeni eklendi.`);
+    await loadProducts();
   };
+  reader.readAsArrayBuffer(file);
 }
 
-// Mevcut stok/ürün listesini Trendyol'dan çekme — resmi dokümandan doğrulandı
-// (Ürün Filtreleme - Onaylı Ürün v2). Bu uç nokta stokla birlikte ürün başlığını
-// ve görsel URL'sini de döndürdüğü için isim/resim eksikliği burada çözülüyor.
-function resolveTyImage(url) {
-  if (!url) return null;
-  if (/^https?:\/\//i.test(url)) return url;
-  return `https://cdn.dsmcdn.com${url.startsWith("/") ? "" : "/"}${url}`;
+async function loadLog() {
+  const r = await fetch('/api/push-log');
+  if (r.status === 401) return;
+  const data = await r.json();
+  state.log = data.log || [];
+  renderLog();
 }
 
-async function fetchStockTrendyol() {
-  if (!tyConfigured()) return { platform: "ty", error: "Trendyol API bilgileri .env dosyasında eksik.", rows: [] };
-  const { TY_SELLER_ID, TY_API_KEY, TY_API_SECRET, TY_ENV } = process.env;
-  const host = TY_ENV === "test" ? "stageapigw.trendyol.com" : "apigw.trendyol.com";
-  const url = `https://${host}/integration/product/sellers/${TY_SELLER_ID}/products/approved`;
-  const rows = [];
-  try {
-    let page = 0;
-    let nextPageToken = null;
-    for (let i = 0; i < 25; i++) {
-      const params = nextPageToken ? { size: 100, nextPageToken } : { size: 100, page };
-      const resp = await axios.get(url, {
-        auth: { username: TY_API_KEY, password: TY_API_SECRET },
-        params,
-        headers: { "User-Agent": `${TY_SELLER_ID} - SelfIntegration`, Accept: "application/json" },
-        timeout: 20000,
-      });
-      const content = resp.data?.content || [];
-      content.forEach((item) => {
-        const name = item.title || item.productMainId || "";
-        const image = resolveTyImage(item.images?.[0]?.url);
-        (item.variants || []).forEach((v) => {
-          const barcode = String(v.barcode || v.stockCode || "").trim();
-          if (!barcode) return;
-          const price = Number(v.salePrice ?? v.listPrice ?? v.price ?? 0) || undefined;
-          rows.push({ barcode, stock: Number(v.stock?.quantity ?? v.quantity ?? 0), name, image, price });
-        });
-      });
-      nextPageToken = resp.data?.nextPageToken || null;
-      const totalPages = resp.data?.totalPages ?? 1;
-      page++;
-      if (!content.length || (!nextPageToken && page >= totalPages)) break;
-    }
-    return { platform: "ty", error: null, rows };
-  } catch (err) {
-    const msg =
-      err.response?.status === 401 || err.response?.status === 403
-        ? "Trendyol kimlik doğrulama hatası — API key/secret veya seller ID'yi kontrol et."
-        : err.response?.data
-        ? `Trendyol hata: ${JSON.stringify(err.response.data).slice(0, 300)}`
-        : `Trendyol bağlantı hatası: ${err.message}`;
-    return { platform: "ty", error: msg, rows: [] };
-  }
-}
-
-async function pushStockToTrendyol(barcode, quantity) {
-  if (!tyConfigured()) return { ok: false, message: "Trendyol API bilgisi eksik." };
-  const { TY_SELLER_ID, TY_API_KEY, TY_API_SECRET, TY_ENV } = process.env;
-  const host = TY_ENV === "test" ? "stageapigw.trendyol.com" : "apigw.trendyol.com";
-  const url = `https://${host}/integration/inventory/sellers/${TY_SELLER_ID}/products/price-and-inventory`;
-  const qty = Math.max(0, Math.floor(Number(quantity) || 0));
-  try {
-    const resp = await axios.post(
-      url,
-      { items: [{ barcode, quantity: qty }] },
-      { auth: { username: TY_API_KEY, password: TY_API_SECRET }, headers: { "Content-Type": "application/json" }, timeout: 15000 }
-    );
-    return { ok: true, message: "Gönderildi", batchRequestId: resp.data?.batchRequestId || null };
-  } catch (err) {
-    return { ok: false, message: err.response?.data ? JSON.stringify(err.response.data).slice(0, 250) : err.message };
-  }
-}
-
-// Fiyat + stok birlikte gönderilir (Trendyol aynı uç noktayı kullanıyor). Otomatik
-// fiyatlandırma motoru tarafından çağrılır.
-async function pushPriceToTrendyol(barcode, salePrice, quantity) {
-  if (!tyConfigured()) return { ok: false, message: "Trendyol API bilgisi eksik." };
-  const { TY_SELLER_ID, TY_API_KEY, TY_API_SECRET, TY_ENV } = process.env;
-  const host = TY_ENV === "test" ? "stageapigw.trendyol.com" : "apigw.trendyol.com";
-  const url = `https://${host}/integration/inventory/sellers/${TY_SELLER_ID}/products/price-and-inventory`;
-  const qty = Math.max(0, Math.floor(Number(quantity) || 0));
-  const price = Math.round(Number(salePrice) * 100) / 100;
-  try {
-    const resp = await axios.post(
-      url,
-      { items: [{ barcode, quantity: qty, salePrice: price, listPrice: price }] },
-      { auth: { username: TY_API_KEY, password: TY_API_SECRET }, headers: { "Content-Type": "application/json" }, timeout: 15000 }
-    );
-    return { ok: true, message: "Gönderildi", batchRequestId: resp.data?.batchRequestId || null };
-  } catch (err) {
-    return { ok: false, message: err.response?.data ? JSON.stringify(err.response.data).slice(0, 250) : err.message };
-  }
-}
-
-/* ==================================================================
-   Rekabet takibi — RESMİ BİR API DEĞİL. Rakip ürün sayfası genel
-   (public) HTML'i çekilip fiyat ayıklanır. Bu yüzden "best effort"tur:
-   sayfa tasarımı değişirse ayıklama bozulabilir. Öncelik JSON-LD
-   (schema.org Product/Offer) verisine verilir çünkü bu, görsel
-   tasarım değişse bile genelde aynı kalan yapısal bir veridir.
-================================================================== */
-async function fetchCompetitorPrice(url) {
-  try {
-    const resp = await axios.get(url, {
-      timeout: 15000,
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-        Accept: "text/html,application/xhtml+xml",
-      },
-      maxRedirects: 5,
-    });
-    const html = String(resp.data);
-
-    // 1) JSON-LD (schema.org Product/Offer) — en güvenilir yol
-    const ldBlocks = [...html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
-    for (const m of ldBlocks) {
-      try {
-        let data = JSON.parse(m[1].trim());
-        const items = Array.isArray(data) ? data : data["@graph"] || [data];
-        for (const item of items) {
-          const offers = item?.offers ? (Array.isArray(item.offers) ? item.offers : [item.offers]) : null;
-          if (offers) {
-            const price = offers.map((o) => Number(o.price || o.lowPrice)).find((n) => !isNaN(n) && n > 0);
-            if (price) return { ok: true, price, sellerName: offers[0]?.seller?.name || null };
-          }
-        }
-      } catch (_) {
-        /* bu blok JSON-LD değilse yoksay, diğerine bak */
-      }
-    }
-
-    // 2) Yedek: meta etiketi (og:price:amount / product:price:amount)
-    const metaMatch = html.match(/<meta[^>]+(?:property|name)=["'](?:og:price:amount|product:price:amount)["'][^>]+content=["']([\d.,]+)["']/i);
-    if (metaMatch) {
-      const price = Number(metaMatch[1].replace(/\./g, "").replace(",", "."));
-      if (price > 0) return { ok: true, price, sellerName: null };
-    }
-
-    return { ok: false, error: "Sayfadan fiyat okunamadı (yapı değişmiş olabilir)." };
-  } catch (err) {
-    const status = err.response?.status;
-    if (status === 403 || status === 429) return { ok: false, error: "Site erişimi engelledi (çok sık çekiliyor olabilir)." };
-    return { ok: false, error: err.message };
-  }
-}
-
-function clamp(n, min, max) {
-  let v = n;
-  if (min !== null && min !== undefined && min !== "") v = Math.max(v, Number(min));
-  if (max !== null && max !== undefined && max !== "") v = Math.min(v, Number(max));
-  return Math.round(v * 100) / 100;
-}
-
-// Tek bir ürün için: rakip fiyatlarını tazeler, otomatik fiyatlandırma açıksa
-// yeni fiyatı hesaplayıp Trendyol'a gönderir. results.priceLog'a bir kayıt düşer.
-async function repriceProduct(code) {
-  const p = products[code];
-  if (!p) return { ok: false, error: "Ürün bulunamadı." };
-
-  await Promise.all(
-    (p.competitors || []).map(async (c) => {
-      const r = await fetchCompetitorPrice(c.url);
-      c.lastCheckedAt = new Date().toISOString();
-      if (r.ok) {
-        c.lastPrice = r.price;
-        c.sellerName = r.sellerName || c.sellerName;
-        c.lastError = null;
-      } else {
-        c.lastError = r.error;
-      }
-    })
-  );
-
-  let pushResult = null;
-  const prices = (p.competitors || []).map((c) => c.lastPrice).filter((n) => typeof n === "number" && n > 0);
-  const lowest = prices.length ? Math.min(...prices) : null;
-
-  if (p.pricing.autoReprice && p.pricing.minPrice != null && p.pricing.maxPrice != null && lowest != null) {
-    const target = clamp(lowest - (Number(p.pricing.undercut) || 0), p.pricing.minPrice, p.pricing.maxPrice);
-    if (target !== p.pricing.myPrice) {
-      const qty = p.stocks?.ty ?? p.centralStock ?? 0;
-      const sku = skuForPlatform(code, "ty");
-      const r = await pushPriceToTrendyol(sku, target, qty);
-      pushResult = { ok: r.ok, message: r.message, newPrice: target };
-      if (r.ok) {
-        p.pricing.myPrice = target;
-        p.prices.ty = target;
-      }
-      pushLog.push({
-        time: new Date().toISOString(),
-        barcode: code,
-        name: p.name,
-        centralStock: p.centralStock,
-        trigger: "otomatik fiyatlandırma",
-        results: { ty: r },
-      });
-      persistPushLog();
-    }
-  }
-
-  persistProducts();
-  return { ok: true, lowest, pushResult, competitors: p.competitors };
-}
-
-async function repriceAll() {
-  const codes = Object.keys(products).filter((c) => (products[c].competitors || []).length > 0);
-  for (const code of codes) {
-    try {
-      await repriceProduct(code);
-    } catch (e) {
-      console.error("Rekabet kontrolü hatası:", code, e.message);
-    }
-  }
-  return { checked: codes.length };
-}
-
-
-/* ==================================================================
-   N11 — resmi REST API (developer.n11.com)
-================================================================== */
-function n11Configured() {
-  return !!(process.env.N11_APP_KEY && process.env.N11_APP_SECRET);
-}
-
-async function fetchN11Orders() {
-  if (!n11Configured()) return { platform: "n11", error: "N11 API bilgileri .env dosyasında eksik.", orders: [] };
-  const { N11_APP_KEY, N11_APP_SECRET } = process.env;
-  const endDate = Date.now();
-  const startDate = endDate - 7 * 24 * 60 * 60 * 1000;
-  const url = "https://api.n11.com/rest/delivery/v1/shipmentPackages";
-
-  try {
-    const resp = await axios.get(url, {
-      headers: { appKey: N11_APP_KEY, appSecret: N11_APP_SECRET, Accept: "application/json" },
-      params: { startDate, endDate, page: 0, size: 100, orderByDirection: "DESC", orderByField: true },
-      timeout: 20000,
-    });
-    const content = resp.data?.content || [];
-    return { platform: "n11", error: null, orders: content.map(normalizeN11Package) };
-  } catch (err) {
-    const msg =
-      err.response?.status === 401 || err.response?.status === 403
-        ? "N11 kimlik doğrulama hatası — appKey/appSecret'i kontrol et."
-        : err.response?.data
-        ? `N11 hata: ${JSON.stringify(err.response.data).slice(0, 300)}`
-        : `N11 bağlantı hatası: ${err.message}`;
-    return { platform: "n11", error: msg, orders: [] };
-  }
-}
-
-function normalizeN11Package(pkg) {
-  const lines = (pkg.lines || []).map((l) => ({
-    barcode: String(l.stockCode || l.barcode || "").trim(),
-    quantity: Number(l.quantity || 1),
-    name: l.productName || l.stockCode || "",
-  }));
-  return {
-    platform: "n11",
-    orderNumber: pkg.orderNumber || String(pkg.id || "—"),
-    packageId: String(pkg.id || pkg.orderNumber || ""),
-    customer: pkg.customerfullName || "Müşteri",
-    city: pkg.shippingAddress?.city || "",
-    productSummary: lines.map((l) => `${l.name || l.barcode || "Ürün"} x${l.quantity}`).join(", ") || "—",
-    amount: Number(pkg.totalAmount) || 0,
-    status: pkg.shipmentPackageStatus || "—",
-    date: pkg.lastModifiedDate || null,
-    lines,
-  };
-}
-
-// Satıcı Ürün Sorgulama — developer.n11.com/documentation/n11-marketplace-entegrasyonu/satici-urun-sorgulama/
-// GET https://api.n11.com/ms/product-query (appKey/appSecret header, page 0'dan başlar, size max 250)
-async function fetchStockN11() {
-  if (!n11Configured()) return { platform: "n11", error: "N11 API bilgileri .env dosyasında eksik.", rows: [] };
-  const { N11_APP_KEY, N11_APP_SECRET } = process.env;
-  const url = "https://api.n11.com/ms/product-query";
-  const rows = [];
-  try {
-    let page = 0;
-    for (let i = 0; i < 50; i++) {
-      const resp = await axios.get(url, {
-        headers: { appKey: N11_APP_KEY, appSecret: N11_APP_SECRET, Accept: "application/json" },
-        params: { page, size: 250 },
-        timeout: 20000,
-      });
-      const content = resp.data?.content || [];
-      content.forEach((it) => {
-        const barcode = String(it.stockCode || "").trim();
-        if (!barcode) return;
-        const price = Number(it.salePrice ?? it.listPrice ?? 0) || undefined;
-        rows.push({ barcode, stock: Number(it.quantity ?? 0), name: it.title || "", price, image: it.imageUrls?.[0] || undefined });
-      });
-      const totalPages = resp.data?.totalPages ?? 1;
-      page++;
-      if (!content.length || page >= totalPages) break;
-    }
-    return { platform: "n11", error: null, rows };
-  } catch (err) {
-    const msg =
-      err.response?.status === 401 || err.response?.status === 403
-        ? "N11 kimlik doğrulama hatası — appKey/appSecret'i kontrol et."
-        : err.response?.data
-        ? `N11 hata: ${JSON.stringify(err.response.data).slice(0, 300)}`
-        : `N11 bağlantı hatası: ${err.message}`;
-    return { platform: "n11", error: msg, rows: [] };
-  }
-}
-
-async function pushStockToN11(barcode, quantity) {
-  if (!n11Configured()) return { ok: false, message: "N11 API bilgisi eksik." };
-  const { N11_APP_KEY, N11_APP_SECRET } = process.env;
-  const url = "https://api.n11.com/ms/product/tasks/price-stock-update";
-  const qty = Math.max(0, Math.floor(Number(quantity) || 0));
-  const body = { payload: { integrator: "TicaretPaneli", skus: [{ stockCode: barcode, quantity: qty }] } };
-  try {
-    const resp = await axios.post(url, body, {
-      headers: { appKey: N11_APP_KEY, appSecret: N11_APP_SECRET, "Content-Type": "application/json" },
-      timeout: 15000,
-    });
-    if (resp.data?.status === "REJECT") {
-      return { ok: false, message: (resp.data?.reasons || []).join(" ") || "N11 reddetti." };
-    }
-    return { ok: true, message: "Gönderildi", taskId: resp.data?.id || null };
-  } catch (err) {
-    return { ok: false, message: err.response?.data ? JSON.stringify(err.response.data).slice(0, 250) : err.message };
-  }
-}
-
-/* ==================================================================
-   ÇİÇEKSEPETİ — ciceksepeti.dev resmi dokümanına göre doğrulandı (25.09.2026):
-   - Base URL: prod https://apis.ciceksepeti.com/api/v1/ , test https://sandbox-apis.ciceksepeti.com/api/v1/
-   - Sipariş listesi: POST /api/v1/Order/GetOrders  (GET DEĞİL, body ile parametre)
-   - Her istekte iki header zorunlu: x-api-key (API Key) VE user-agent
-     (entegratör kullanılmıyorsa sadece Satıcı ID; entegratörle çalışılıyorsa
-     "Satıcı Id-Entegratör Adı")
-   - Aynı request body ile dakikada 1 istekten fazla atılamıyor (rate limit).
-================================================================== */
-function csConfigured() {
-  return !!(process.env.CS_API_KEY && process.env.CS_SUPPLIER_ID);
-}
-
-function csHost() {
-  return process.env.CS_ENV === "test" ? "sandbox-apis.ciceksepeti.com" : "apis.ciceksepeti.com";
-}
-
-function csHeaders() {
-  const { CS_API_KEY, CS_SUPPLIER_ID, CS_INTEGRATOR_NAME } = process.env;
-  const userAgent = CS_INTEGRATOR_NAME ? `${CS_SUPPLIER_ID}-${CS_INTEGRATOR_NAME}` : String(CS_SUPPLIER_ID);
-  return { "x-api-key": CS_API_KEY, "user-agent": userAgent, "Content-Type": "application/json", Accept: "application/json" };
-}
-
-async function fetchCiceksepetiOrders() {
-  if (!csConfigured())
-    return { platform: "cs", error: "Çiçeksepeti API bilgisi .env dosyasında eksik (CS_API_KEY, CS_SUPPLIER_ID).", orders: [] };
-  const url = `https://${csHost()}/api/v1/Order/GetOrders`;
-  const endDate = new Date();
-  const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-
-  try {
-    const resp = await axios.post(
-      url,
-      { startDate: startDate.toISOString(), endDate: endDate.toISOString(), pageSize: 100, page: 0 },
-      { headers: csHeaders(), timeout: 20000 }
-    );
-    const orders = resp.data?.orders || resp.data?.Orders || resp.data?.result || resp.data?.data || resp.data?.content || [];
-    return { platform: "cs", error: null, orders: (Array.isArray(orders) ? orders : []).map(normalizeCsPackage) };
-  } catch (err) {
-    const detail = err.response?.data ? ` — ${JSON.stringify(err.response.data).slice(0, 300)}` : "";
-    const msg =
-      err.response?.status === 401 || err.response?.status === 403
-        ? `Çiçeksepeti kimlik doğrulama hatası (${err.response.status})${detail}`
-        : err.response?.data
-        ? `Çiçeksepeti hata: ${JSON.stringify(err.response.data).slice(0, 300)}`
-        : `Çiçeksepeti bağlantı hatası: ${err.message}`;
-    return { platform: "cs", error: msg, orders: [] };
-  }
-}
-
-function normalizeCsPackage(pkg) {
-  const items = pkg.orderItems || pkg.items || pkg.lines || [];
-  const lines = items.map((it) => ({
-    barcode: String(it.stockCode || it.barcode || "").trim(),
-    quantity: Number(it.quantity || 1),
-    name: it.productName || it.stockCode || "",
-  }));
-  return {
-    platform: "cs",
-    orderNumber: pkg.orderNo || pkg.orderNumber || String(pkg.orderId || "—"),
-    packageId: String(pkg.orderId || pkg.orderNo || ""),
-    customer: pkg.receiverName || pkg.customerName || "Müşteri",
-    city: pkg.city || pkg.address?.city || "",
-    productSummary: lines.map((l) => `${l.name || l.barcode || "Ürün"} x${l.quantity}`).join(", ") || "—",
-    amount: Number(pkg.totalPrice || pkg.amount || 0),
-    status: pkg.status || pkg.orderStatus || "—",
-    date: pkg.orderDate ? new Date(pkg.orderDate).getTime() : null,
-    lines,
-  };
-}
-
-// Ürün Listeleme — ciceksepeti.dev resmi dokümanına göre doğrulandı (25.09.2026):
-// GET /api/v1/Products — Page 1'den başlar, PageSize en fazla 60.
-// Response: { totalCount, products: [{ stockCode, stockQuantity, salesPrice, productName, images: [...] }] }
-async function fetchStockCiceksepeti() {
-  if (!csConfigured()) return { platform: "cs", error: "Çiçeksepeti API bilgisi .env dosyasında eksik (CS_API_KEY, CS_SUPPLIER_ID).", rows: [] };
-  const url = `https://${csHost()}/api/v1/Products`;
-  const rows = [];
-  try {
-    let page = 1;
-    let totalCount = Infinity;
-    while (rows.length < totalCount && page < 200) {
-      const resp = await axios.get(url, { headers: csHeaders(), params: { Page: page, PageSize: 60 }, timeout: 20000 });
-      const products = resp.data?.products || resp.data?.Products || [];
-      totalCount = Number(resp.data?.totalCount ?? resp.data?.TotalCount ?? products.length);
-      products.forEach((it) => {
-        const barcode = String(it.stockCode || it.StockCode || "").trim();
-        if (!barcode) return;
-        const price = Number(it.salesPrice ?? it.SalesPrice ?? 0) || undefined;
-        rows.push({
-          barcode,
-          stock: Number(it.stockQuantity ?? it.StockQuantity ?? 0),
-          name: it.productName || it.ProductName || "",
-          price,
-          image: it.images?.[0] || it.Images?.[0] || undefined,
-        });
-      });
-      if (!products.length) break;
-      page++;
-    }
-    return { platform: "cs", error: null, rows };
-  } catch (err) {
-    const detail = err.response?.data ? ` — ${JSON.stringify(err.response.data).slice(0, 300)}` : "";
-    const msg =
-      err.response?.status === 401 || err.response?.status === 403
-        ? `Çiçeksepeti kimlik doğrulama hatası (${err.response.status})${detail}`
-        : err.response?.data
-        ? `Çiçeksepeti hata: ${JSON.stringify(err.response.data).slice(0, 300)}`
-        : `Çiçeksepeti bağlantı hatası: ${err.message}`;
-    return { platform: "cs", error: msg, rows: [] };
-  }
-}
-
-// NOT: Bu uç nokta (stok/fiyat güncelleme) henüz sipariş listeleme kadar
-// doğrulanmadı — "Ürün Yönetimi" bölümünde farklı bir yol olabilir. İlk
-// denemede hata alırsan Senkron Günlüğü'ndeki mesajı ilet, dokümandan
-// "Stok Güncelleme" bölümünü birlikte kontrol ederiz.
-async function pushStockToCiceksepeti(barcode, quantity) {
-  if (!csConfigured()) return { ok: false, message: "Çiçeksepeti API bilgisi eksik." };
-  const url = `https://${csHost()}/api/v1/products/stock-price`;
-  const qty = Math.max(0, Math.floor(Number(quantity) || 0));
-  try {
-    const resp = await axios.post(url, { items: [{ stockCode: barcode, stockQuantity: qty }] }, { headers: csHeaders(), timeout: 15000 });
-    return { ok: true, message: "Gönderildi", batchId: resp.data?.batchId || null };
-  } catch (err) {
-    return { ok: false, message: err.response?.data ? JSON.stringify(err.response.data).slice(0, 250) : err.message };
-  }
-}
-
-/* ==================================================================
-   KENDİ SİTEM (nokta-hirdavat-site backend'i)
-   Diğer pazaryerlerinin aksine burada karşı taraf da bizim yazdığımız
-   bir backend, bu yüzden kimlik doğrulama basit bir x-api-key ile yapılıyor.
-================================================================== */
-function siteConfigured() {
-  return !!(process.env.SITE_API_URL && process.env.SITE_API_KEY);
-}
-function siteHeaders() {
-  return { "x-api-key": process.env.SITE_API_KEY };
-}
-
-function normalizeSiteOrder(o) {
-  const lines = (o.lines || []).map((it) => ({
-    barcode: String(it.barcode || "").trim(),
-    quantity: Number(it.quantity || 1),
-    name: it.name || "",
-  }));
-  const productSummary = lines.map((l) => `${l.name || l.barcode || "Ürün"} x${l.quantity}`).join(", ");
-  return {
-    platform: "site",
-    orderNumber: o.orderNumber || "—",
-    packageId: String(o.orderNumber || ""),
-    customer: o.customer || "Müşteri",
-    city: o.city || "",
-    productSummary: productSummary || "—",
-    amount: Number(o.amount) || 0,
-    status: o.status || "Yeni",
-    date: o.date || null,
-    lines,
-  };
-}
-
-async function fetchSiteOrders() {
-  if (!siteConfigured()) return { platform: "site", error: "Kendi Sitem API bilgileri .env dosyasında eksik.", orders: [] };
-  try {
-    const resp = await axios.get(`${process.env.SITE_API_URL}/api/orders`, { headers: siteHeaders(), timeout: 15000 });
-    const raw = Array.isArray(resp.data) ? resp.data : resp.data?.orders || [];
-    return { platform: "site", error: null, orders: raw.map(normalizeSiteOrder) };
-  } catch (err) {
-    const msg =
-      err.response?.status === 401
-        ? "Kendi Sitem kimlik doğrulama hatası — SITE_API_KEY iki tarafta da aynı mı kontrol et."
-        : err.response?.data
-        ? `Kendi Sitem hata: ${JSON.stringify(err.response.data).slice(0, 300)}`
-        : `Kendi Sitem bağlantı hatası: ${err.message}`;
-    return { platform: "site", error: msg, orders: [] };
-  }
-}
-
-async function fetchStockSite() {
-  if (!siteConfigured()) return { platform: "site", error: "Kendi Sitem API bilgisi eksik.", rows: [] };
-  try {
-    const resp = await axios.get(`${process.env.SITE_API_URL}/api/stock`, { headers: siteHeaders(), timeout: 15000 });
-    const raw = Array.isArray(resp.data) ? resp.data : resp.data?.rows || [];
-    return {
-      platform: "site",
-      error: null,
-      rows: raw.map((r) => ({ barcode: String(r.barcode || "").trim(), stock: Number(r.stock || 0), name: r.name || "", price: r.price })),
-    };
-  } catch (err) {
-    return { platform: "site", error: `Kendi Sitem stok okuma hatası: ${err.message}`, rows: [] };
-  }
-}
-
-async function pushStockToSite(barcode, quantity) {
-  if (!siteConfigured()) return { ok: false, message: "Kendi Sitem API bilgisi eksik." };
-  const qty = Math.max(0, Math.floor(Number(quantity) || 0));
-  try {
-    await axios.post(`${process.env.SITE_API_URL}/api/stock`, { barcode, quantity: qty }, { headers: siteHeaders(), timeout: 15000 });
-    return { ok: true, message: "Gönderildi" };
-  } catch (err) {
-    return { ok: false, message: err.response?.data ? JSON.stringify(err.response.data).slice(0, 250) : err.message };
-  }
-}
-
-/* ==================================================================
-   PLATFORM KAYDI — yeni bir pazaryeri eklemek için buraya bir satır
-================================================================== */
-const PLATFORMS = [
-  { id: "hb", name: "Hepsiburada", color: "#FF6A00", configured: hbConfigured, fetchOrders: fetchHepsiburadaOrders, pushStock: pushStockToHepsiburada, fetchStock: fetchStockHepsiburada, stockPullVerified: false, verified: true },
-  { id: "ty", name: "Trendyol", color: "#00C2B2", configured: tyConfigured, fetchOrders: fetchTrendyolOrders, pushStock: pushStockToTrendyol, fetchStock: fetchStockTrendyol, stockPullVerified: true, verified: true },
-  { id: "n11", name: "N11", color: "#7B2CBF", configured: n11Configured, fetchOrders: fetchN11Orders, pushStock: pushStockToN11, fetchStock: fetchStockN11, stockPullVerified: true, verified: true },
-  // Sipariş çekme (GetOrders) ve ürün listeleme (Products) resmi dokümana göre doğrulandı;
-  // stok/fiyat gönderme ucu (products/stock-price) henüz doğrulanmadı.
-  { id: "cs", name: "Çiçeksepeti", color: "#E4287C", configured: csConfigured, fetchOrders: fetchCiceksepetiOrders, pushStock: pushStockToCiceksepeti, fetchStock: fetchStockCiceksepeti, stockPullVerified: true, verified: true },
-  { id: "site", name: "Kendi Sitem", color: "#FF5A2B", configured: siteConfigured, fetchOrders: fetchSiteOrders, pushStock: pushStockToSite, fetchStock: fetchStockSite, stockPullVerified: true, verified: true },
-];
-
-app.get("/api/platforms", requireAuth, (req, res) => {
-  res.json({
-    platforms: PLATFORMS.map((p) => ({
-      id: p.id,
-      name: p.name,
-      color: p.color,
-      configured: p.configured(),
-      verified: p.verified,
-      pullable: !!p.fetchStock,
-      stockPullVerified: p.stockPullVerified,
-    })),
+function renderLog() {
+  const box = document.getElementById('logRows');
+  box.innerHTML = '';
+  document.getElementById('logEmpty').style.display = state.log.length ? 'none' : 'block';
+  state.log.forEach(entry => {
+    const badges = Object.entries(entry.results || {}).map(([id, res]) => {
+      const pm = platformMeta(id);
+      return `<span class="badge ${res.ok ? 'ok' : 'fail'}">${pm.name} ${res.ok ? '✓' : '✗'}</span>`;
+    }).join(' ');
+    const failMsgs = Object.entries(entry.results || {}).filter(([,res]) => !res.ok).map(([id,res]) => `${platformMeta(id).name}: ${res.message}`).join(' | ');
+    const div = document.createElement('div');
+    div.className = 'logrow';
+    div.innerHTML = `
+      <div>
+        <b>${entry.name || entry.barcode}</b>
+        <span class="muted" style="font-family:monospace;"> ${entry.barcode}</span>
+        <div class="muted">${entry.trigger === 'sipariş' ? 'Sipariş kaynaklı' : 'Manuel gönderim'} — yeni stok: ${entry.centralStock}</div>
+        ${failMsgs ? `<div class="muted" style="color:var(--danger)">${failMsgs}</div>` : ''}
+      </div>
+      <div style="text-align:right;">
+        <div>${badges}</div>
+        <div class="muted">${fmtDate(new Date(entry.time).getTime())}</div>
+      </div>`;
+    box.appendChild(div);
   });
-});
-
-/* ------------------------------------------------------------------
-   Yeni siparişlerden stok düşürme + tüm yapılandırılmış platformlara
-   otomatik geri yazma
------------------------------------------------------------------- */
-async function processNewOrdersAndSync(ordersByPlatform) {
-  const changedCodes = new Set();
-  let newlyProcessed = 0;
-  const skuIndex = buildSkuIndex();
-
-  function handleOrder(order) {
-    if (!order.packageId && !order.orderNumber) return;
-    const key = `${order.platform}:${order.packageId || order.orderNumber}`;
-    if (processedPackages.has(key)) return;
-
-    (order.lines || []).forEach((line) => {
-      if (!line.barcode) return;
-      // Bu platformdaki SKU daha önce bir ürün koduna bağlanmışsa onu kullan;
-      // yoksa yeni bir ürün oluştur (kod = bu platformdaki barkod).
-      const code = skuIndex[order.platform]?.get(line.barcode) || line.barcode;
-      const p = ensureProduct(code, line.name);
-      if (!p.skus[order.platform]) p.skus[order.platform] = line.barcode;
-      if (line.name && (!p.name || p.name === "İsimsiz ürün")) p.name = line.name;
-      p.centralStock = Math.max(0, (Number(p.centralStock) || 0) - (Number(line.quantity) || 1));
-      changedCodes.add(code);
-    });
-
-    processedPackages.add(key);
-    newlyProcessed++;
-  }
-
-  ordersByPlatform.forEach((orders) => orders.forEach(handleOrder));
-
-  if (newlyProcessed) {
-    persistProcessed();
-    persistProducts();
-  }
-
-  for (const code of changedCodes) {
-    const p = products[code];
-    const results = {};
-    await Promise.all(
-      PLATFORMS.filter((pl) => pl.configured()).map(async (pl) => {
-        const r = await pl.pushStock(skuForPlatform(code, pl.id), p.centralStock);
-        results[pl.id] = r;
-        if (r.ok) p.stocks[pl.id] = p.centralStock;
-      })
-    );
-    pushLog.push({ time: new Date().toISOString(), barcode: code, name: p.name, centralStock: p.centralStock, trigger: "sipariş", results });
-  }
-
-  if (changedCodes.size) {
-    persistProducts();
-    persistPushLog();
-  }
-
-  return { changedCount: changedCodes.size, newOrders: newlyProcessed };
 }
 
-/* ------------------------------------------------------------------
-   Önbellek + otomatik döngü
------------------------------------------------------------------- */
-let cache = { fetchedAt: null, orders: [], errors: [], sync: { changedCount: 0, newOrders: 0 } };
-
-async function refreshAll() {
-  const results = await Promise.all(PLATFORMS.map((p) => p.fetchOrders()));
-  const merged = results.flatMap((r) => r.orders).sort((a, b) => (b.date || 0) - (a.date || 0));
-  const errors = results.map((r) => r.error).filter(Boolean);
-
-  let sync = { changedCount: 0, newOrders: 0 };
-  try {
-    sync = await processNewOrdersAndSync(results.map((r) => r.orders));
-  } catch (e) {
-    errors.push("Stok senkron hatası: " + e.message);
-  }
-
-  cache = { fetchedAt: new Date().toISOString(), orders: merged, errors, sync };
-  return cache;
+/* --- Google Drive yedekleme --- */
+function fmtBytes(n) {
+  n = Number(n) || 0;
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
-/* ------------------------------------------------------------------
-   API — Siparişler
------------------------------------------------------------------- */
-app.get("/api/orders", requireAuth, async (req, res) => {
-  if (req.query.force === "1" || !cache.fetchedAt) await refreshAll();
-  res.json(cache);
-});
+async function loadBackupStatus() {
+  const r = await fetch('/api/backup/status');
+  if (r.status === 401) return;
+  const data = await r.json();
+  const warn = document.getElementById('backupConfigWarn');
+  const line = document.getElementById('backupStatusLine');
+  const btn = document.getElementById('backupNowBtn');
+  const connectBtn = document.getElementById('backupConnectBtn');
 
-app.post("/api/refresh", requireAuth, async (req, res) => {
-  res.json(await refreshAll());
-});
+  // OAuth (kendi Google hesabın) yapılandırılmış ama henüz bağlanılmamışsa bağlan butonunu göster.
+  connectBtn.style.display = (data.oauthAvailable && !data.oauthConnected) ? 'inline-block' : 'none';
 
-/* ------------------------------------------------------------------
-   API — Stok / ürün yönetimi
------------------------------------------------------------------- */
-app.get("/api/products", requireAuth, (req, res) => {
-  res.json({
-    products: Object.entries(products).map(([code, p]) => ({
-      code,
-      barcode: code, // geriye dönük uyumluluk için aynı alan iki isimle de dönüyor
-      name: p.name,
-      category: p.category || "",
-      stocks: p.stocks || {},
-      skus: p.skus || {},
-      prices: p.prices || {},
-      listingStatus: p.listingStatus || {},
-      centralStock: p.centralStock,
-      image: p.image || null,
-      pricing: p.pricing || { minPrice: null, maxPrice: null, myPrice: null, autoReprice: false, undercut: 0.01 },
-      competitors: p.competitors || [],
-    })),
-  });
-});
-
-// Eşleştirme sekmesi için: her yapılandırılmış platformda, hangi ürünlerin o
-// platforma henüz özel bir SKU ile bağlanmadığını (varsayılan olarak ürün koduyla
-// eşleştiğini) listeler — kullanıcı isterse bunu onaylar ya da farklı bir SKU girer.
-app.get("/api/products/match-status", requireAuth, (req, res) => {
-  const status = {};
-  PLATFORMS.filter((pl) => pl.configured()).forEach((pl) => {
-    status[pl.id] = Object.entries(products)
-      .filter(([, p]) => !p.skus?.[pl.id])
-      .map(([code, p]) => ({ code, name: p.name, defaultSku: code }));
-  });
-  res.json({ status });
-});
-
-app.post("/api/products", requireAuth, (req, res) => {
-  const { code, barcode, name, category, centralStock, stocks, skus, prices, listingStatus } = req.body || {};
-  const productCode = String(code || barcode || "").trim();
-  if (!productCode) return res.status(400).json({ ok: false, error: "Ürün kodu gerekli." });
-  const p = ensureProduct(productCode, name);
-  if (name?.trim()) p.name = name.trim();
-  if (category !== undefined) p.category = String(category || "").trim();
-  if (centralStock !== undefined && centralStock !== "") p.centralStock = Number(centralStock);
-  if (stocks && typeof stocks === "object") {
-    Object.entries(stocks).forEach(([platformId, val]) => {
-      if (val !== undefined && val !== "") p.stocks[platformId] = Number(val);
-    });
-  }
-  if (prices && typeof prices === "object") {
-    Object.entries(prices).forEach(([platformId, val]) => {
-      if (val === "" || val === null) delete p.prices[platformId];
-      else if (val !== undefined) p.prices[platformId] = Number(val);
-    });
-  }
-  if (listingStatus && typeof listingStatus === "object") {
-    Object.entries(listingStatus).forEach(([platformId, val]) => {
-      p.listingStatus[platformId] = val === "pasif" ? "pasif" : "satista";
-    });
-  }
-  const conflicts = [];
-  if (skus && typeof skus === "object") {
-    const skuIndex = buildSkuIndex();
-    Object.entries(skus).forEach(([platformId, val]) => {
-      const sku = String(val || "").trim();
-      if (!sku) {
-        delete p.skus[platformId];
-        return;
-      }
-      // Bu SKU zaten başka bir üründe kayıtlıysa (eşleştirme çakışması), burada
-      // uygulamıyoruz — kullanıcıya "birleştirilsin mi?" seçeneği sunuluyor.
-      const owner = skuIndex[platformId]?.get(sku);
-      if (owner && owner !== productCode) {
-        conflicts.push({ platform: platformId, sku, code: owner, name: products[owner]?.name || owner });
-        return;
-      }
-      p.skus[platformId] = sku;
-    });
-  }
-  persistProducts();
-  res.json({ ok: true, product: { code: productCode, ...p }, conflicts });
-});
-
-app.delete("/api/products/:code", requireAuth, (req, res) => {
-  delete products[req.params.code];
-  persistProducts();
-  res.json({ ok: true });
-});
-
-// Bir ürünün Ana Ürün Kodu'nu (objede anahtar olarak kullanılan `code`) değiştirir.
-// SKU'lar, stoklar, fiyatlar, rekabet ayarları vs. hepsi yeni koda taşınır.
-// Bir platform için ayrıca SKU tanımlanmamışsa o platformda varsayılan SKU olarak
-// bu kod kullanıldığından (skuForPlatform), kod değişince o varsayılan da değişir —
-// eğer platformda gerçek SKU zaten farklıysa (skus objesinde kayıtlıysa) etkilenmez.
-app.post("/api/products/:code/rename", requireAuth, (req, res) => {
-  const oldCode = req.params.code;
-  const newCode = String(req.body?.newCode || "").trim();
-  const p = products[oldCode];
-  if (!p) return res.status(404).json({ ok: false, error: "Ürün bulunamadı." });
-  if (!newCode) return res.status(400).json({ ok: false, error: "Yeni ürün kodu boş olamaz." });
-  if (newCode === oldCode) return res.json({ ok: true, product: { code: oldCode, ...p } });
-  if (products[newCode]) return res.status(409).json({ ok: false, error: "Bu ürün kodu zaten başka bir üründe kullanılıyor. Birleştirmek için üzerine sürükleyip bırakabilirsin." });
-
-  products[newCode] = p;
-  delete products[oldCode];
-  persistProducts();
-  res.json({ ok: true, product: { code: newCode, ...p } });
-});
-
-// İki ürünü tek üründe birleştirir (sürükle-bırak ile farklı platformlardaki
-// karşılıkları aynı ürün kodu altında toplamak için). `from` ürününün platform
-// SKU'ları ve stokları `to` ürününe aktarılır (to'da zaten varsa to'nunki kalır),
-// merkezi stok en yüksek olan değer korunur, `from` silinir.
-app.post("/api/products/merge", requireAuth, (req, res) => {
-  const { from, to } = req.body || {};
-  const src = products[from];
-  const dst = products[to];
-  if (!src || !dst) return res.status(404).json({ ok: false, error: "Ürün bulunamadı." });
-  if (from === to) return res.status(400).json({ ok: false, error: "Aynı ürünü kendisiyle birleştiremezsin." });
-
-  Object.entries(src.skus || {}).forEach(([platformId, sku]) => {
-    if (!dst.skus[platformId]) {
-      dst.skus[platformId] = sku;
-      if (src.stocks?.[platformId] !== undefined) dst.stocks[platformId] = src.stocks[platformId];
+  if (!data.configured) {
+    if (data.oauthAvailable && !data.oauthConnected) {
+      warn.innerHTML = `<div class="warnbox">Google OAuth bilgileri girilmiş ama henüz bağlanılmamış. Sağdaki "Google ile Bağlan" butonuyla kendi Google hesabınla bir kez giriş yap.</div>`;
+    } else {
+      warn.innerHTML = `<div class="warnbox">Google Drive yedekleme henüz yapılandırılmadı. .env dosyasına GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, GOOGLE_OAUTH_REDIRECT_URI ve GOOGLE_DRIVE_FOLDER_ID eklenmeli.</div>`;
     }
+    line.textContent = 'Yapılandırılmadı.';
+    btn.disabled = true;
+    return;
+  }
+  warn.innerHTML = '';
+  btn.disabled = false;
+  const lb = data.lastBackup || {};
+  let text = `Otomatik yedekleme: ${data.intervalHours} saatte bir. `;
+  text += lb.at ? `Son başarılı yedek: ${fmtDate(new Date(lb.at).getTime())}.` : 'Henüz başarılı bir yedekleme yapılmadı.';
+  if (lb.error) text += ` Son deneme hata verdi: ${lb.error}`;
+  line.textContent = text;
+}
+
+function connectGoogleDrive() {
+  window.open('/api/backup/oauth/start', '_blank');
+}
+
+async function loadBackupList() {
+  const r = await fetch('/api/backup/list');
+  if (r.status === 401) return;
+  const data = await r.json();
+  const tbody = document.getElementById('backupRows');
+  tbody.innerHTML = '';
+  if (!data.ok) { document.getElementById('backupEmpty').style.display = 'block'; return; }
+  const files = data.files || [];
+  document.getElementById('backupEmpty').style.display = files.length ? 'none' : 'block';
+  files.forEach(f => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-family:monospace;">${f.name}</td>
+      <td class="muted">${fmtDate(new Date(f.createdTime).getTime())}</td>
+      <td class="muted">${fmtBytes(f.size)}</td>
+      <td><button class="ghost small" onclick="restoreBackup('${f.id}','${f.name}')">Geri Yükle</button></td>`;
+    tbody.appendChild(tr);
   });
-  dst.centralStock = Math.max(Number(dst.centralStock) || 0, Number(src.centralStock) || 0);
-  if (!dst.image && src.image) dst.image = src.image;
-  if ((!dst.name || dst.name === "İsimsiz ürün") && src.name) dst.name = src.name;
+}
 
-  delete products[from];
-  persistProducts();
-  res.json({ ok: true, product: { code: to, ...dst } });
-});
+async function runBackupNow() {
+  const btn = document.getElementById('backupNowBtn');
+  btn.disabled = true; btn.textContent = 'Yedekleniyor...';
+  try {
+    const resp = await fetch('/api/backup/run', { method: 'POST' });
+    const data = await resp.json();
+    toast(data.ok ? 'Yedek Drive\'a kaydedildi.' : (data.error || 'Yedekleme başarısız.'));
+    await loadBackupStatus();
+    await loadBackupList();
+  } finally {
+    btn.disabled = false; btn.textContent = 'Şimdi Yedekle';
+  }
+}
 
-// Ortak birleştirme mantığı: hem Excel/CSV içe aktarma hem de "Siteden Çek" (API)
-// aynı satır listesini (r.barcode = o platformdaki SKU, stock, name) bu fonksiyonla
-// ürün kataloğuna işler. SKU daha önce bir ürün koduna bağlıysa o ürün güncellenir;
-// değilse yeni bir ürün oluşturulur (kod = bu platformdaki SKU).
-function mergeStockRows(platform, rows) {
-  const skuIndex = buildSkuIndex()[platform];
-  let updated = 0,
-    created = 0;
-  rows.forEach((r) => {
-    const sku = String(r.barcode || "").trim();
-    if (!sku) return;
-    const stock = Number(r.stock) || 0;
-    const code = skuIndex.get(sku) || sku;
-    const existed = !!products[code];
-    const p = ensureProduct(code, r.name);
-    if (!p.skus[platform]) p.skus[platform] = sku;
-    p.stocks[platform] = stock;
-    // Ürün daha önce hiç görülmemişse (merkezi stok hiç ayarlanmamışsa) bu platformun
-    // stok değeri merkezi stoğun ilk değeri olarak da kullanılır.
-    if (!existed) p.centralStock = stock;
-    if (r.name && (!p.name || p.name === "İsimsiz ürün")) p.name = r.name;
-    if (r.image) p.image = r.image;
-    const price = Number(r.price);
-    if (price > 0) p.prices[platform] = price;
-    existed ? updated++ : created++;
+async function restoreBackup(fileId, name) {
+  const ok = confirm(`"${name}" yedeğini geri yüklemek istediğine emin misin?\n\nŞu anki tüm ürün, stok ve senkron günlüğü verisi bu yedekteki verilerle DEĞİŞTİRİLECEK. Bu işlem geri alınamaz.`);
+  if (!ok) return;
+  toast('Geri yükleniyor…');
+  const resp = await fetch('/api/backup/restore', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fileId })
   });
-  persistProducts();
-  return { updated, created };
+  const data = await resp.json();
+  if (!data.ok) { toast(data.error || 'Geri yükleme başarısız.'); return; }
+  toast(`Geri yüklendi (${data.productCount} ürün).`);
+  await loadProducts();
+  await loadLog();
 }
 
-// Excel/CSV içe aktarma: dosya tarayıcıda (SheetJS ile) okunur, satırlar burada birleştirilir.
-app.post("/api/products/import", requireAuth, (req, res) => {
-  const { platform, rows } = req.body || {};
-  if (!PLATFORMS.some((p) => p.id === platform) || !Array.isArray(rows)) {
-    return res.status(400).json({ ok: false, error: "Geçersiz istek." });
-  }
-  const result = mergeStockRows(platform, rows);
-  res.json({ ok: true, ...result });
-});
-
-// Siteden çekme: ilgili platformun API'sinden mevcut stok/ürün listesini alıp
-// aynı birleştirme mantığıyla kataloğa işler. Sadece fetchStock tanımlı platformlarda çalışır.
-app.post("/api/products/pull", requireAuth, async (req, res) => {
-  const { platform } = req.body || {};
-  const pl = PLATFORMS.find((p) => p.id === platform);
-  if (!pl) return res.status(400).json({ ok: false, error: "Geçersiz platform." });
-  if (!pl.fetchStock) return res.status(400).json({ ok: false, error: `${pl.name} için siteden çekme henüz desteklenmiyor.` });
-  if (!pl.configured()) return res.status(400).json({ ok: false, error: `${pl.name} API bilgileri .env dosyasında eksik.` });
-
-  const result = await pl.fetchStock();
-  if (result.error) return res.status(502).json({ ok: false, error: result.error });
-  const merged = mergeStockRows(platform, result.rows);
-  res.json({ ok: true, ...merged, total: result.rows.length });
-});
-
-// Bir ürünün merkezi stoğunu elle tüm yapılandırılmış platformlara anında gönder.
-// Her platforma, o platform için tanımlı SKU ile gönderilir (skuForPlatform).
-app.post("/api/products/:code/push", requireAuth, async (req, res) => {
-  const code = req.params.code;
-  const p = products[code];
-  if (!p) return res.status(404).json({ ok: false, error: "Ürün bulunamadı." });
-
-  const results = {};
-  await Promise.all(
-    PLATFORMS.filter((pl) => pl.configured()).map(async (pl) => {
-      const r = await pl.pushStock(skuForPlatform(code, pl.id), p.centralStock);
-      results[pl.id] = r;
-      if (r.ok) p.stocks[pl.id] = p.centralStock;
-    })
-  );
-  persistProducts();
-
-  const entry = { time: new Date().toISOString(), barcode: code, name: p.name, centralStock: p.centralStock, trigger: "manuel", results };
-  pushLog.push(entry);
-  persistPushLog();
-
-  res.json({ ok: true, results });
-});
-
-app.get("/api/push-log", requireAuth, (req, res) => {
-  res.json({ log: pushLog.slice(-60).reverse() });
-});
-
-/* ------------------------------------------------------------------
-   API — Rekabet takibi / otomatik fiyatlandırma
------------------------------------------------------------------- */
-
-// Bir ürünün rekabet ayarlarını (min/max fiyat, otomatik fiyatlandırma açık/kapalı,
-// rakip link listesi) günceller. Rakip listesi tamamen gönderilenle değiştirilir.
-app.post("/api/products/:code/pricing", requireAuth, (req, res) => {
-  const p = products[req.params.code];
-  if (!p) return res.status(404).json({ ok: false, error: "Ürün bulunamadı." });
-  const { minPrice, maxPrice, autoReprice, undercut, competitorUrls } = req.body || {};
-
-  if (minPrice !== undefined) p.pricing.minPrice = minPrice === "" || minPrice === null ? null : Number(minPrice);
-  if (maxPrice !== undefined) p.pricing.maxPrice = maxPrice === "" || maxPrice === null ? null : Number(maxPrice);
-  if (autoReprice !== undefined) p.pricing.autoReprice = !!autoReprice;
-  if (undercut !== undefined && undercut !== "") p.pricing.undercut = Number(undercut);
-
-  if (p.pricing.minPrice != null && p.pricing.maxPrice != null && p.pricing.minPrice > p.pricing.maxPrice) {
-    return res.status(400).json({ ok: false, error: "En düşük fiyat, en yüksek fiyattan büyük olamaz." });
-  }
-
-  if (Array.isArray(competitorUrls)) {
-    const existing = new Map((p.competitors || []).map((c) => [c.url, c]));
-    p.competitors = competitorUrls
-      .map((u) => String(u || "").trim())
-      .filter(Boolean)
-      .map((url) => existing.get(url) || { url, label: "", lastPrice: null, lastCheckedAt: null, lastError: null, sellerName: null });
-  }
-
-  persistProducts();
-  res.json({ ok: true, product: { code: req.params.code, ...p } });
-});
-
-// Tek bir ürün için hemen kontrol et (rakip fiyatlarını çek + gerekiyorsa fiyatı güncelle)
-app.post("/api/products/:code/reprice-check", requireAuth, async (req, res) => {
-  const result = await repriceProduct(req.params.code);
-  if (!result.ok) return res.status(404).json(result);
-  res.json(result);
-});
-
-// Tüm rakip linki tanımlı ürünleri kontrol et
-app.post("/api/reprice-all", requireAuth, async (req, res) => {
-  res.json(await repriceAll());
-});
-
-/* ==================================================================
-   YEDEKLEME — Google Drive
-   Kurulum:
-   1) Google Cloud Console'da bir proje aç, "Service Account" (hizmet hesabı)
-      oluştur, JSON anahtar dosyasını indir.
-   2) İndirdiğin dosyayı proje köküne koy (örn. service-account.json) ve
-      .env dosyasına şu satırı ekle:
-        GOOGLE_SERVICE_ACCOUNT_KEY_FILE=./service-account.json
-   3) Google Drive'da bir klasör oluştur, klasörü hizmet hesabının
-      e-postasıyla (JSON dosyasındaki "client_email") DÜZENLEYEN olarak
-      paylaş (normal "Paylaş" menüsünden, e-posta adresi olarak).
-   4) Klasörün ID'sini (tarayıcıda adresteki /folders/XXXXX kısmı)
-      .env dosyasına ekle:
-        GOOGLE_DRIVE_FOLDER_ID=XXXXX
-   İsteğe bağlı: BACKUP_INTERVAL_HOURS (varsayılan 24), BACKUP_KEEP_COUNT
-   (Drive'da tutulacak en yeni yedek sayısı, varsayılan 30 — fazlası silinir).
-   Ek npm paketi gerekmez; kimlik doğrulama axios + crypto ile yapılır.
-================================================================== */
-const GOOGLE_KEY_FILE = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE || "";
-const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID || "";
-const BACKUP_INTERVAL_HOURS = Number(process.env.BACKUP_INTERVAL_HOURS || 24);
-const BACKUP_KEEP_COUNT = Number(process.env.BACKUP_KEEP_COUNT || 30);
-
-/* --- OAuth ile bağlantı (önerilen yöntem) ---
-   Servis hesaplarının kendi depolama kotası olmadığı için normal (Workspace
-   olmayan) bir Google Drive'a dosya YAZAMAZLAR — klasör paylaşılmış olsa bile
-   Google "Service Accounts do not have storage quota" hatası verir. Bunun
-   çözümü, panelin senin kendi Google hesabınla bir kere yetkilendirilmesi:
-   1) Google Cloud Console > APIs & Services > Credentials > Create Credentials
-      > OAuth client ID > Application type: Web application.
-   2) Authorized redirect URI olarak şunu ekle:
-        <sitenin-adresi>/api/backup/oauth/callback
-      (örn. https://siparispaneli.onrender.com/api/backup/oauth/callback)
-   3) OAuth consent screen ekranını doldurman istenebilir (User Type: External,
-      uygulama adı vs.) — "Testing" durumunda kalabilir, kendi hesabını
-      "Test users" listesine eklemen yeterli.
-   4) Oluşan Client ID ve Client Secret'ı .env'e ekle:
-        GOOGLE_OAUTH_CLIENT_ID=...
-        GOOGLE_OAUTH_CLIENT_SECRET=...
-        GOOGLE_OAUTH_REDIRECT_URI=https://.../api/backup/oauth/callback
-   5) Panelde Yedekleme sekmesinden "Google ile Bağlan" butonuna bas, kendi
-      hesabınla giriş yap. "Google doğrulamadı" uyarısı çıkarsa Advanced >
-      Go to ... (unsafe) ile devam et (kendi uygulaman olduğu için güvenli).
-*/
-const GOOGLE_OAUTH_CLIENT_ID = process.env.GOOGLE_OAUTH_CLIENT_ID || "";
-const GOOGLE_OAUTH_CLIENT_SECRET = process.env.GOOGLE_OAUTH_CLIENT_SECRET || "";
-const GOOGLE_OAUTH_REDIRECT_URI = process.env.GOOGLE_OAUTH_REDIRECT_URI || "";
-
-function oauthConfigured() {
-  return !!(GOOGLE_OAUTH_CLIENT_ID && GOOGLE_OAUTH_CLIENT_SECRET && GOOGLE_OAUTH_REDIRECT_URI);
+function toast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
 }
 
-let oauthRefreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN || (loadJSON("google-oauth-token.json", {}).refresh_token || "");
-let oauthAccessCache = { token: null, exp: 0 };
-let oauthPendingState = null;
-
-function oauthReady() {
-  return !!(oauthConfigured() && oauthRefreshToken);
-}
-
-app.get("/api/backup/oauth/start", requireAuth, (req, res) => {
-  if (!oauthConfigured()) {
-    return res.status(400).send("GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET / GOOGLE_OAUTH_REDIRECT_URI .env'de eksik.");
-  }
-  oauthPendingState = crypto.randomBytes(16).toString("hex");
-  const params = new URLSearchParams({
-    client_id: GOOGLE_OAUTH_CLIENT_ID,
-    redirect_uri: GOOGLE_OAUTH_REDIRECT_URI,
-    response_type: "code",
-    access_type: "offline",
-    prompt: "consent",
-    scope: "https://www.googleapis.com/auth/drive",
-    state: oauthPendingState,
-  });
-  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
-});
-
-app.get("/api/backup/oauth/callback", async (req, res) => {
-  const { code, state, error } = req.query;
-  if (error) return res.status(400).send(`Google yetkilendirme hatası: ${error}`);
-  if (!code || !state || state !== oauthPendingState) {
-    return res.status(400).send("Geçersiz veya süresi dolmuş istek. Yedekleme sekmesinden tekrar “Google ile Bağlan” de.");
-  }
-  oauthPendingState = null;
-  try {
-    const resp = await axios.post(
-      "https://oauth2.googleapis.com/token",
-      new URLSearchParams({
-        code,
-        client_id: GOOGLE_OAUTH_CLIENT_ID,
-        client_secret: GOOGLE_OAUTH_CLIENT_SECRET,
-        redirect_uri: GOOGLE_OAUTH_REDIRECT_URI,
-        grant_type: "authorization_code",
-      }).toString(),
-      { headers: { "Content-Type": "application/x-www-form-urlencoded" }, timeout: 15000 }
-    );
-    const { refresh_token, access_token, expires_in } = resp.data;
-    if (!refresh_token) {
-      return res
-        .status(400)
-        .send(
-          "Google bir refresh token döndürmedi (muhtemelen bu hesap için izin daha önce verilmişti). " +
-            "myaccount.google.com/permissions adresinden bu uygulamanın erişimini kaldırıp tekrar dene."
-        );
-    }
-    oauthRefreshToken = refresh_token;
-    oauthAccessCache = { token: access_token, exp: Math.floor(Date.now() / 1000) + Number(expires_in || 3600) };
-    saveJSON("google-oauth-token.json", { refresh_token });
-    res.send(`<!doctype html><html><body style="font-family:sans-serif; padding:40px; max-width:640px;">
-      <h2>Google Drive bağlantısı başarılı ✅</h2>
-      <p>Bu sekmeyi kapatabilirsin, panele dönüp "Şimdi Yedekle" ile deneyebilirsin.</p>
-      <p style="color:#888; font-size:13px;">Not: Sunucu yeniden dağıtıldığında (redeploy) bu bağlantının kaybolmaması için,
-      barındırma panelindeki (Render vb.) ortam değişkenlerine şunu da eklemen önerilir:</p>
-      <pre style="background:#f2f2f2; padding:10px; border-radius:6px; white-space:pre-wrap; word-break:break-all;">GOOGLE_OAUTH_REFRESH_TOKEN=${refresh_token}</pre>
-      </body></html>`);
-  } catch (e) {
-    const msg = e.response?.data ? JSON.stringify(e.response.data).slice(0, 500) : e.message;
-    res.status(500).send("Token alınamadı: " + msg);
-  }
-});
-
-async function getOAuthAccessToken() {
-  const now = Math.floor(Date.now() / 1000);
-  if (oauthAccessCache.token && oauthAccessCache.exp - 60 > now) return oauthAccessCache.token;
-  if (!oauthReady()) throw new Error("Google Drive bağlantısı henüz kurulmadı (Yedekleme sekmesinden “Google ile Bağlan”).");
-  const resp = await axios.post(
-    "https://oauth2.googleapis.com/token",
-    new URLSearchParams({
-      client_id: GOOGLE_OAUTH_CLIENT_ID,
-      client_secret: GOOGLE_OAUTH_CLIENT_SECRET,
-      refresh_token: oauthRefreshToken,
-      grant_type: "refresh_token",
-    }).toString(),
-    { headers: { "Content-Type": "application/x-www-form-urlencoded" }, timeout: 15000 }
-  );
-  oauthAccessCache = { token: resp.data.access_token, exp: now + Number(resp.data.expires_in || 3600) };
-  return oauthAccessCache.token;
-}
-
-/* --- Servis hesabı ile bağlantı (yalnızca Google Workspace Paylaşılan Sürücü
-   kullanıyorsan işe yarar — normal kişisel Drive'da kota hatası verir,
-   bu yüzden yukarıdaki OAuth yöntemi önerilir) --- */
-let googleCreds; // undefined = henüz denenmedi, false = yüklenemedi, object = hazır
-function loadGoogleCreds() {
-  if (googleCreds !== undefined) return googleCreds;
-
-  // Render gibi dosya sistemi kalıcı olmayan barındırmalarda, JSON anahtarının
-  // TAMAMI tek bir ortam değişkeni olarak da verilebilir: GOOGLE_SERVICE_ACCOUNT_KEY_JSON
-  const rawJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_JSON || "";
-  if (rawJson.trim()) {
-    try {
-      const json = JSON.parse(rawJson);
-      if (!json.client_email || !json.private_key) throw new Error("client_email/private_key eksik");
-      googleCreds = json;
-      return googleCreds;
-    } catch (e) {
-      console.error("GOOGLE_SERVICE_ACCOUNT_KEY_JSON çözümlenemedi:", e.message);
-      googleCreds = false;
-      return googleCreds;
-    }
-  }
-
-  if (!GOOGLE_KEY_FILE) {
-    googleCreds = false;
-    return googleCreds;
-  }
-  try {
-    const raw = fs.readFileSync(path.resolve(__dirname, GOOGLE_KEY_FILE), "utf8");
-    const json = JSON.parse(raw);
-    if (!json.client_email || !json.private_key) throw new Error("client_email/private_key eksik");
-    googleCreds = json;
-  } catch (e) {
-    console.error("Google servis hesabı anahtarı okunamadı:", e.message);
-    googleCreds = false;
-  }
-  return googleCreds;
-}
-
-function driveConfigured() {
-  return !!(GOOGLE_DRIVE_FOLDER_ID && (oauthReady() || loadGoogleCreds()));
-}
-
-function base64url(buf) {
-  return Buffer.from(buf).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-let driveTokenCache = { token: null, exp: 0 };
-async function getDriveAccessToken() {
-  if (oauthReady()) return getOAuthAccessToken();
-
-  const creds = loadGoogleCreds();
-  if (!creds) throw new Error("Google servis hesabı yapılandırılmadı.");
-  const now = Math.floor(Date.now() / 1000);
-  if (driveTokenCache.token && driveTokenCache.exp - 60 > now) return driveTokenCache.token;
-
-  const header = base64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const claim = base64url(
-    JSON.stringify({
-      iss: creds.client_email,
-      scope: "https://www.googleapis.com/auth/drive",
-      aud: "https://oauth2.googleapis.com/token",
-      iat: now,
-      exp: now + 3600,
-    })
-  );
-  const unsigned = `${header}.${claim}`;
-  const signature = base64url(crypto.sign("RSA-SHA256", Buffer.from(unsigned), creds.private_key));
-  const jwt = `${unsigned}.${signature}`;
-
-  const resp = await axios.post(
-    "https://oauth2.googleapis.com/token",
-    new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: jwt }).toString(),
-    { headers: { "Content-Type": "application/x-www-form-urlencoded" }, timeout: 15000 }
-  );
-  driveTokenCache = { token: resp.data.access_token, exp: now + Number(resp.data.expires_in || 3600) };
-  return driveTokenCache.token;
-}
-
-// Yedek içeriği: ürün kataloğu + işlenmiş sipariş paketleri + gönderim günlüğü
-// tek bir JSON dosyasında toplanır (geri yüklerken bunların hepsi değiştirilir).
-function buildBackupPayload() {
-  return JSON.stringify(
-    {
-      createdAt: new Date().toISOString(),
-      products,
-      processedPackages: Array.from(processedPackages),
-      pushLog,
-    },
-    null,
-    2
-  );
-}
-
-async function uploadBackupToDrive() {
-  const token = await getDriveAccessToken();
-  const content = buildBackupPayload();
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const name = `yedek-${stamp}.json`;
-  const metadata = { name, parents: [GOOGLE_DRIVE_FOLDER_ID], mimeType: "application/json" };
-
-  const boundary = "panelyedek" + crypto.randomBytes(8).toString("hex");
-  const body =
-    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
-    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${content}\r\n` +
-    `--${boundary}--`;
-
-  const resp = await axios.post(
-    "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,createdTime,size",
-    body,
-    { headers: { Authorization: `Bearer ${token}`, "Content-Type": `multipart/related; boundary=${boundary}` }, timeout: 30000 }
-  );
-  await cleanupOldBackups(token);
-  return resp.data;
-}
-
-async function listBackupsFromDrive(token) {
-  const t = token || (await getDriveAccessToken());
-  const q = encodeURIComponent(`'${GOOGLE_DRIVE_FOLDER_ID}' in parents and trashed = false`);
-  const resp = await axios.get(
-    `https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=createdTime desc&pageSize=100&fields=files(id,name,createdTime,size)`,
-    { headers: { Authorization: `Bearer ${t}` }, timeout: 15000 }
-  );
-  return resp.data.files || [];
-}
-
-// BACKUP_KEEP_COUNT'tan fazla yedek varsa en eskilerini Drive'dan siler.
-async function cleanupOldBackups(token) {
-  try {
-    const files = await listBackupsFromDrive(token);
-    const excess = files.slice(BACKUP_KEEP_COUNT);
-    for (const f of excess) {
-      await axios
-        .delete(`https://www.googleapis.com/drive/v3/files/${f.id}`, { headers: { Authorization: `Bearer ${token}` }, timeout: 15000 })
-        .catch(() => {});
-    }
-  } catch (e) {
-    console.error("Eski yedekler temizlenemedi:", e.message);
-  }
-}
-
-async function restoreBackupFromDrive(fileId) {
-  const token = await getDriveAccessToken();
-  const resp = await axios.get(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-    headers: { Authorization: `Bearer ${token}` },
-    timeout: 30000,
-  });
-  const data = resp.data;
-  if (!data || typeof data !== "object" || !data.products) throw new Error("Yedek dosyası geçersiz görünüyor.");
-  products = data.products || {};
-  processedPackages = new Set(data.processedPackages || []);
-  pushLog = data.pushLog || [];
-  persistProducts();
-  persistProcessed();
-  persistPushLog();
-  return { restoredAt: data.createdAt || null, productCount: Object.keys(products).length };
-}
-
-let lastBackup = { at: null, error: null, name: null };
-
-async function runScheduledBackup() {
-  if (!driveConfigured()) return;
-  try {
-    const file = await uploadBackupToDrive();
-    lastBackup = { at: new Date().toISOString(), error: null, name: file.name };
-    console.log("Google Drive yedeklemesi tamamlandı:", file.name);
-  } catch (e) {
-    const msg = e.response?.data ? JSON.stringify(e.response.data).slice(0, 300) : e.message;
-    lastBackup = { ...lastBackup, error: msg };
-    console.error("Google Drive yedeklemesi başarısız:", msg);
-  }
-}
-
-app.get("/api/backup/status", requireAuth, (req, res) => {
-  res.json({
-    configured: driveConfigured(),
-    oauthAvailable: oauthConfigured(),
-    oauthConnected: oauthReady(),
-    lastBackup,
-    intervalHours: BACKUP_INTERVAL_HOURS,
-  });
-});
-
-app.post("/api/backup/run", requireAuth, async (req, res) => {
-  if (!driveConfigured())
-    return res.status(400).json({ ok: false, error: "Google Drive yedekleme yapılandırılmadı (.env: GOOGLE_SERVICE_ACCOUNT_KEY_FILE, GOOGLE_DRIVE_FOLDER_ID)." });
-  try {
-    const file = await uploadBackupToDrive();
-    lastBackup = { at: new Date().toISOString(), error: null, name: file.name };
-    res.json({ ok: true, file });
-  } catch (e) {
-    const msg = e.response?.data ? JSON.stringify(e.response.data).slice(0, 300) : e.message;
-    lastBackup = { ...lastBackup, error: msg };
-    res.status(500).json({ ok: false, error: msg });
-  }
-});
-
-app.get("/api/backup/list", requireAuth, async (req, res) => {
-  if (!driveConfigured()) return res.status(400).json({ ok: false, error: "Google Drive yedekleme yapılandırılmadı." });
-  try {
-    res.json({ ok: true, files: await listBackupsFromDrive() });
-  } catch (e) {
-    res.status(500).json({ ok: false, error: e.response?.data ? JSON.stringify(e.response.data).slice(0, 300) : e.message });
-  }
-});
-
-app.post("/api/backup/restore", requireAuth, async (req, res) => {
-  if (!driveConfigured()) return res.status(400).json({ ok: false, error: "Google Drive yedekleme yapılandırılmadı." });
-  const { fileId } = req.body || {};
-  if (!fileId) return res.status(400).json({ ok: false, error: "fileId gerekli." });
-  try {
-    res.json({ ok: true, ...(await restoreBackupFromDrive(fileId)) });
-  } catch (e) {
-    res.status(500).json({ ok: false, error: e.response?.data ? JSON.stringify(e.response.data).slice(0, 300) : e.message });
-  }
-});
-
-app.use(express.static(path.join(__dirname, "public")));
-
-app.listen(PORT, () => {
-  console.log(`Panel çalışıyor: http://localhost:${PORT}`);
-  refreshAll().catch((e) => console.error("İlk veri çekme hatası:", e.message));
-  setInterval(() => {
-    refreshAll().catch((e) => console.error("Otomatik yenileme hatası:", e.message));
-  }, Math.max(REFRESH_MINUTES, 5) * 60 * 1000);
-
-  // Rekabet kontrolü siparişlerden çok daha seyrek çalışır (varsayılan: 4 saatte bir)
-  // — hem rakip siteyi çok sık yormamak hem de engellenme riskini azaltmak için.
-  setInterval(() => {
-    repriceAll().catch((e) => console.error("Rekabet kontrolü hatası:", e.message));
-  }, Math.max(REPRICE_HOURS, 1) * 60 * 60 * 1000);
-
-  // Google Drive yedeklemesi (varsayılan: günde bir). Yapılandırma eksikse sessizce atlanır.
-  // Kurulumun doğru çalıştığını hemen görebilmek için 2 dakika sonra bir deneme yedeklemesi de yapılır.
-  if (driveConfigured()) {
-    setTimeout(() => runScheduledBackup(), 2 * 60 * 1000);
-  }
-  setInterval(() => {
-    runScheduledBackup();
-  }, Math.max(BACKUP_INTERVAL_HOURS, 1) * 60 * 60 * 1000);
-});
+checkAuth();
+</script>
+</body>
+</html>
