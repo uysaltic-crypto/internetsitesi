@@ -133,7 +133,10 @@ app.get("/api/stock", requireApiKey, (req, res) => {
 app.post("/api/stock", requireApiKey, (req, res) => {
   const { barcode, quantity } = req.body || {};
   const sku = String(barcode || "").trim();
-  if (!sku || !products[sku]) return res.status(404).json({ ok: false, error: "Ürün kodu bulunamadı." });
+  if (!sku || !products[sku]) {
+    // Bu ürün bu sitede satılmıyor — hata değil, sadece uygulanamaz.
+    return res.json({ ok: true, skipped: true, message: "Bu ürün sitede yok, atlandı." });
+  }
   products[sku].stock = Math.max(0, Math.floor(Number(quantity) || 0));
   persistProducts();
   res.json({ ok: true });
